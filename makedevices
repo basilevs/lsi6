@@ -1,3 +1,4 @@
+#!/bin/sh
 
 number_cards=1
 number_channels=6
