@@ -1,7 +1,6 @@
-
 all: naf indicator c0609 c0612 catch_lam rw_count2 rw_count3 write_block read_block
 
-CFLAGS= -I/usr/include -O2 -Wall
+CFLAGS= -I/usr/include -I../ -O2 -Wall
 HEADERS = ../camac.h
 
 indicator: indicator.c

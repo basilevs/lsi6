@@ -19,7 +19,7 @@ modules_install::
 	depmod
 
 camt:	camt.c
-	cc camt.c -o camt -lreadline
+	cc camt.c -o camt -lreadline -lncurses
 
 clean:
 	rm -f *.o *.ko *.cmd camt
