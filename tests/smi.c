@@ -79,14 +79,12 @@ float read_adc(void) /* mv */
 		xq = CAM(crate, NAF24(ADC_N, 0, 8), &data);
 		if (!(xq & 0x1)) break;
 	}
-
-#endif
+#endif
 	data = 0;
 	xq = CAM(crate, NAF24(ADC_N, 1, 16), &data);
 
 	xq = CAM(crate, NAF24(ADC_N, 0, 0), &data);
-
-	printf("data = %08x, ", data);
+	printf("data = %08x, ", data);
 
 	if (data & 0x80000) k = data - 0x100000;
 	else k = data;
@@ -122,8 +120,7 @@ int main(int arc, char **argv)
 		printf("\n");
 		usleep(1000000);
 	}
-
-#endif
+#endif
 	while(1) {
 	    usleep(10000);
 	    read_adc();
