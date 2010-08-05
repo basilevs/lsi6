@@ -1,26 +1,18 @@
-
-UNAME := $(shell uname -r)
-KERNEL26 := 2.6
-KERNELVERSION := $(findstring $(KERNEL26),$(UNAME))
-PWD := $(shell pwd)
+ifneq ($(KERNELRELEASE),)
 
 obj-m := lsi6.o
-lsi6-objs +=  lsi6_lib.o lsi6_main.o
+lsi6-objs += lsi6_lib.o lsi6_main.o
 
+else
 
-KDIR	 := /lib/modules/$(shell uname -r)/build
-KINCLUDE := 
+KERNELDIR ?= /lib/modules/$(shell uname -r)/build                                                                                                     
+PWD       := $(shell pwd)
 
-all::
-	$(MAKE) -C $(KDIR) EXTRA_CFLAGS='$(KINCLUDE) -DEXPORT_SYMTAB -O6' SUBDIRS=$(PWD) modules 
+modules modules_install clean:                                                                                                                        
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) $@
 
-modules_install::
-	$(MAKE) -C $(KDIR) EXTRA_CFLAGS='$(KINCLUDE) -DEXPORT_SYMTAB -O6' SUBDIRS=$(PWD) modules_install 
-	depmod
+endif
 
 camt:	camt.c
 	cc camt.c -o camt -lreadline -lncurses
-
-clean:
-	rm -f *.o *.ko *.cmd camt
 
