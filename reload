@@ -1,0 +1,4 @@
+make clean
+make
+rmmod lsi6
+insmod lsi6.o

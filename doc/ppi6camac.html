@@ -1,0 +1,1119 @@
+<HTML>
+<meta http-equiv="Content-Type" content="text/html; charset=KOI8-R">
+<HEAD>
+<!-- Created by texi2html 1.56k from ppi6camac.texi on 24 February 2000 -->
+
+<TITLE>ppi6camac </TITLE>
+</HEAD>
+<BODY>
+<H1>ppi6camac </H1>
+<P>
+<P><HR><P>
+
+
+<H1><A NAME="SEC1" HREF="ppi6camac_toc.html#TOC1">Введение</A></H1>
+
+<P>
+Описанный здесь драйвер КАМАКа для Linux-а работает с платой интерфейса
+ППИ-6 и контроллером крейта К0607, разработанными Путьмаковым, ИЯФ.
+
+
+<P>
+За основу был взят драйвер, написанный Ole Streicher для  Aachen 
+DBCC Controller with PCCPI Card. 
+
+
+<P>
+Каждому подключенному к компьютеру крейту КАМАК ставится в соответствие 
+специальный файл. При установке по умолчанию эти файлы находятся в 
+директории <TT>`/dev'</TT>. В компьютер может быть установленно 
+две платы интерфейса. Для именования крейтов, подключенных к 
+первой плате приняты имена, начинающиеся с <TT>`ppia'</TT>, ко второй - 
+с <TT>`ppib'</TT>. Пример:
+
+
+<P>
+<TT>`/dev/ppia0'</TT> - для первого крейта, подключенного к первой плате
+интерфейса;
+
+
+<P>
+<TT>`/dev/ppib3'</TT> - для третьего крейта, подключенного ко второй плате
+интерфейса. 
+
+
+<P>
+Открыв эти файлы, можно работать с КАМАКом, используя функции работы
+с файлами: <CODE>open</CODE>, <CODE>close</CODE>, <CODE>ioctl</CODE>, <CODE>lseek</CODE>, 
+<CODE>read</CODE>, <CODE>write</CODE> и макросы из файла
+<TT>`ppi6camac.h'</TT> 
+
+
+<P>
+Драйвер имеет следующие черты:
+
+
+
+<UL>
+
+<LI>
+
+ Устанавливается как загружаемый модуль;
+
+<LI>
+
+ Во время загрузки модуля могут устанавливаться: 
+
+
+<UL>
+<LI>базовый адрес ( по умолчанию 0x240 ),
+
+<LI>номер IRQ     ( по умолчанию 15 ),
+
+<LI>главный номер специального файла ( -//- 120),
+
+   ( вышеперечисленное в принципе позволяет использовать несколько
+   плат интерфейса в одном компьютере);
+</UL>
+
+<LI>
+
+ Может выполнять 16-и или 24-х разрядные одиночные КАМАК циклы
+   или циклы без данных;
+<LI>
+
+ Может выполнять блочные КАМАК 16-и или 24-х разрядные циклы;
+<LI>
+
+ Может проверять наличие LAM запроса и  
+ ожидать  LAM запрос в течении указаного времени;
+<LI>
+
+ Управляет линией <VAR>Inhibit</VAR>;
+<LI>
+
+ Может проводить <VAR>C</VAR> и <VAR>Z</VAR> КАМАК циклы.
+</UL>
+
+
+
+<H1><A NAME="SEC2" HREF="ppi6camac_toc.html#TOC2">Установка драйвера</A></H1>
+
+
+
+<H2><A NAME="SEC3" HREF="ppi6camac_toc.html#TOC3">Трансляция драйвера</A></H2>
+
+
+<OL>
+<LI>Распаковать пакет в подходящем месте;
+
+<LI>Оттранслировать. Для чего достаточно сказать
+
+     
+     <CODE>make</CODE> 
+
+   в директории, где находится пакет. При этом будет создан загружаемый 
+   модуль <CODE>ppi6.o</CODE>
+
+   Сказать 
+
+   <CODE>make camt</CODE> 
+
+   для трансляции программы ручной работы с КАМАКом.
+
+  Для дальнейших шагов по установке необходимы права суперпользователя;
+
+<LI>Создать специальные файлы, соответствующие крейтам. Для этого надо сказать
+
+     
+ <CODE>make devices</CODE>
+
+   При этом будут созданы файлы <TT>`/dev/ppia0'</TT> ... <TT>`/dev/ppia5'</TT> и 
+<TT>`/dev/ppib0'</TT> ... <TT>`/dev/ppib5'</TT>;
+   
+<LI>Установить пакет, для чего сказать
+
+     
+ <CODE>make install</CODE>
+ 
+   Файл <TT>`ppi6.o'</TT> будет скопирован в <TT>`/lib/modules/$(VERSION)/misc'</TT>; 
+   файл <TT>`ppi6camac.h'</TT> будет скопирован в <TT>`/usr/local/include'</TT>; 
+   файл <TT>`camt'</TT> будет скопирован в <TT>`/usr/local/bin'</TT>;
+   info описание драйвера будет установлено в систему.
+
+</OL>
+
+
+
+<H2><A NAME="SEC4" HREF="ppi6camac_toc.html#TOC4">Установка модуля</A></H2>
+
+<P>
+
+
+<P>
+Есть несколько способов установки загружаемого модуля <TT>`ppi6.o'</TT> в систему.
+
+
+<P>
+Можно непосредственно сказать, обладая правами супервизора:
+
+
+
+<PRE>
+    insmod ppi6 [irq=15] [major=120] [io=0x250]
+</PRE>
+
+<P>
+Для каждой платы интерфейса должен быть загружен свой экземпляр 
+модуля со своим уникальным именем. Например <TT>`ppia'</TT> и <TT>`ppib'</TT>. 
+
+
+<P>
+Необязательные параметры <CODE>irq</CODE>, <CODE>major</CODE>, <CODE>io</CODE> предназначены 
+для настройки драйвера под конкретную интерфейсную плату и конфигурацию. 
+
+
+<P>
+Для удаления модуля из системы надо сказать, обладая правами 
+суперпользователя
+
+
+
+<PRE>
+    rmmod ppi6
+</PRE>
+
+<P>
+Другой способ -- описать параметры в файле <TT>`/etc/conf.modules'</TT>:
+
+
+
+<PRE>
+alias ppia ppi6
+options ppia -o ppia io=0x240 irq=10 major=120
+alias ppib ppi6
+options ppib -o ppib io=0x250 irq=12 major=121
+</PRE>
+
+<P>
+Теперь для установки драйвера для первой платы достаточно сказать 
+
+<PRE>
+	modprobe ppia
+</PRE>
+
+<P>
+А добавив в тот же файл:
+
+
+
+<PRE>
+alias char-major-120 ppi6
+options char-major-120 -o ppia io=0x240 irq=10 major=120
+alias char-major-121 ppi6
+options char-major-121 -o ppib io=0x250 irq=12 major=121
+</PRE>
+
+<P>
+Драйвер будет `сам' устанавливаться при открытии соответствующего
+файла.
+
+
+
+
+<H1><A NAME="SEC5" HREF="ppi6camac_toc.html#TOC5">Использование драйвера.</A></H1>
+
+<P>
+Драйвер доступен через специальные файлы. При установке по умолчанию это
+файлы <TT>`/dev/ppia0'</TT> и <TT>`/dev/ppia1'</TT>. Файлы соответствуют первому и 
+второму крейтам, подключенным к первой плате интерфейса.
+
+
+<P>
+В программе на "C" и "C++" для использования драйвера необходимо подключить
+файл <TT>`ppi6camac.h'</TT>:
+
+<PRE>
+#include&#60;ppi6camac.h&#62;
+</PRE>
+
+<P>
+В этом файле находятся константы и макросы для кодирования параметров
+при вызове системных функций и описаны функции, облегчающие работу
+с КАМАКом.
+
+
+
+
+<H2><A NAME="SEC6" HREF="ppi6camac_toc.html#TOC6">Системные вызовы</A></H2>
+
+<P>
+Драйвер обрабатывает следующие системные вызовы:
+
+
+
+
+<H3><A NAME="SEC7" HREF="ppi6camac_toc.html#TOC7">open()</A></H3>
+
+<P>
+<A NAME="IDX1"></A>
+
+<PRE>
+int open(const char *pathname, int flafs);
+</PRE>
+
+<P>
+Открыть КАМАК крейт. <CODE>pathname</CODE> это строка <TT>`/dev/ppi0'</TT> или 
+<TT>`/dev/ppi1'</TT>
+( и т.д. если используется больше одной интерфейсной платы). 
+<CODE>flags</CODE> должен быть <VAR>O_RDWR</VAR>.
+
+
+<P>
+Функция возвращает дескриптор файла (fd), с которым будут работать остальные
+функции, или <CODE>-1</CODE> в случае ошибки.
+
+
+
+
+<H3><A NAME="SEC8" HREF="ppi6camac_toc.html#TOC8">close()</A></H3>
+
+<P>
+<A NAME="IDX2"></A>
+
+<PRE>
+int close(int fd);
+</PRE>
+
+<P>
+Функция 'закрывает' КАМАК крейт. 
+
+
+<P>
+Возвращает 0 при успешном выполнении.
+
+
+
+
+<H3><A NAME="SEC9" HREF="ppi6camac_toc.html#TOC9">lseek()</A></H3>
+
+
+<PRE>
+off_t lseek(int fd, off_t offset, int whence)
+</PRE>
+
+<P>
+<A NAME="IDX3"></A>
+Функция передает в драйвер адрес <CODE>N</CODE>, субадрес <CODE>A</CODE>, 
+функцию <CODE>F</CODE> и, возможно, признак 24-х битовой работы через 
+<CODE>offset</CODE> параметр. Следующие за этим функции <CODE>read</CODE>
+и <CODE>write</CODE> будут проводить CAMAC обмены, использую переданные
+параметры.
+
+
+<P>
+<CODE>offset</CODE> можно построить, 
+используя макро <CODE>NAF(N,A,F)</CODE> или <CODE>NAF24(N,A,F)</CODE> из 
+<TT>`ppi6camac.h'</TT>. 
+
+
+<P>
+<CODE>whence</CODE> параметр 
+может быть только <VAR>SEEK_SET</VAR>. Функция возвращает <CODE>-1</CODE> при ошибке. 
+Т.о. типичное использование этой функции:
+
+
+
+<PRE>
+ lseek(fd, NAF(n, a, f), SEEK_SET);
+</PRE>
+
+<P>
+<CODE>lseek</CODE> не выполняет никаких операций обмена с крейтом,
+она только устанавливает в драйвере 'указатель позиции в файле', 
+согласно N, A и F для последующего использования.
+
+
+<P>
+При отсутствии ошибки функция возвращает параметр <CODE>offset</CODE>.
+
+
+
+
+<H3><A NAME="SEC10" HREF="ppi6camac_toc.html#TOC10">read() и write()</A></H3>
+
+<P>
+<A NAME="IDX4"></A>
+<A NAME="IDX5"></A>
+
+<PRE>
+int read(int fd, char *buf, size_t count);
+int write(int fd, char *buf, size_t count);
+</PRE>
+
+<P>
+Эти функции обеспечивают проведение КАМАК цикла с предварительно
+установленными функцией <CODE>lseek</CODE> адресом, субадресом и функцией.
+
+
+<P>
+Тип проводимого КАМАК цикла зависит от значения счетчика <CODE>count</CODE>.
+
+
+<DL COMPACT>
+
+<DT><CODE>count = 2</CODE>
+<DD>
+ - проводится 16-и разрядный КАМАК цикл
+<DT><CODE>count = 3</CODE>
+<DD>
+- проводится 24-х разрядный КАМАК цикл
+<DT><CODE>count = 4*n</CODE>
+<DD>
+- проводится n 16-и или 24-х разрядных КАМАК циклов
+		      ( аналог LONG NAF )
+</DL>
+
+<P>
+Данные читаются/пишутся из/в <CODE>buf</CODE>.
+
+
+<P>
+При успешном выполнении возвращается количество переданных
+байтов. При ошибке возвращается <CODE>-1</CODE>.
+
+
+<P>
+Ответ  <VAR>X</VAR> и <VAR>Q</VAR> можно узнать через 
+<CODE>ioctl(fd ,CAMAC_STATUS, &#38;status)</CODE>.
+
+
+<P>
+При использовании этих функций обеспечивается максимальная скорость 
+передачи блоков данных. Для выполнения одиночных КАМАК функций лучше 
+использовать функцию <CODE>ioctl()</CODE>.
+
+
+
+
+<H3><A NAME="SEC11" HREF="ppi6camac_toc.html#TOC11">ioctl()</A></H3>
+
+
+<PRE>
+int ioctl(int fd, int cmd, unsigned long *argp);
+</PRE>
+
+<P>
+Самая 'развесистая' из описываемых здесь функций. Позволяет проводить
+КАМАК циклы с данными и без данных, получать ответ блока и таймаут на
+последний, проведенный из используемого <CODE>fd</CODE>, КАМАК-цикл.
+
+
+<P>
+Допустимы следующие команды <CODE>cmd</CODE>, определенные в файле ppi6camac.h:
+
+
+<DL COMPACT>
+
+<DT><CODE>NAF(n, a, f)</CODE>
+<DD>
+        - провести 16-и разрядный КАМАК цикл.
+	для команд чтения ( F0 - F7),  argp - куда писать,
+	для команд записи ( F16 - F23), argp - откуда читать.
+	argp может быть NULL. В этом случае проводится КАМАК цикл,
+	данные не передаются.
+
+Возвращает ответ <CODE>X</CODE>, <CODE>Q</CODE> в младших двух битах. При ошибке или 
+таймауте возвращает <CODE>-1</CODE>. Код ошибки можно посмотреть в <CODE>errno</CODE>. 
+
+<DT><CODE>CAMAC_24 | NAF(n, a, f)</CODE>
+<DD>
+- то же что и <CODE>NAF</CODE>, но проводится 24-х разрядный 
+	КАМАК цикл.
+
+<DT><CODE>NAF24(n, a, f)</CODE>
+<DD>
+- см. выше.
+
+<DT><CODE>CAMAC_STATUS</CODE>
+<DD>
+        - кладет в <CODE>*argp</CODE> ответы <CODE>timeout</CODE>,<CODE>X</CODE>,<CODE>Q</CODE> 
+        в младшие три бита.
+	Ответ дается от последнего, проведенного через используемый 
+	дескриптор <CODE>fd</CODE>, КАМАК цикла.
+	Так можно получить эти ответы от long naf, проведенного через
+	<CODE>read</CODE> или <CODE>write</CODE>.
+
+<DT><CODE>CAMAC_NON_DATA</CODE>
+<DD>
+        - провести КАМАК цикл без данных, с <CODE>N</CODE>, <CODE>A</CODE>, <CODE>F</CODE> 
+        предварительно	установленных через <CODE>lseek</CODE>. 
+        Ответ <CODE>timeout</CODE>, <CODE>X</CODE>, <CODE>Q</CODE> можно получить
+	через <CODE>ioctl</CODE> командой <VAR>CAMAC_STATUS</VAR>.
+
+<DT><CODE>CAMAC_LWAIT(lgroup)</CODE>
+<DD>
+                      - ожидание появления <VAR>LAM</VAR> в групповом запросе 
+                      <CODE>lgroup</CODE>. 
+
+                     
+<CODE>timeout=argp</CODE>
+
+если <CODE>timeout &#62; 0</CODE> то ждать <VAR>LAM</VAR> в течении
+                      этого таймаута;                      
+
+если <CODE>timeout &#60; 0</CODE> - ждать вечно;
+                      
+если <CODE>timeout == 0</CODE> то провести проверку наличия
+                      <VAR>LAM</VAR> запроса.
+
+		      timeout указывается в "тиках".
+                      (для x86 тик равен 10 миллисекунд).
+
+		      Возвращает остаток таймаута, если <VAR>LAM</VAR> появился в
+		      указанный срок, иначе <CODE>-1</CODE> и 
+                      <CODE>errno</CODE>=<VAR>ETIME</VAR>.
+		      Для "вечного" ожидания при появлении <VAR>LAM</VAR>
+                      возвращается <CODE>0</CODE>. 
+                      При ошибках возвращается <VAR>-1</VAR>. 
+
+<DT><CODE>CAMAC_ION<A NAME="DOCF1" HREF="ppi6camac_foot.html#FOOT1">(1)</A>
+<DD>
+- включает линию <VAR>INHIBIT</VAR>
+
+<DT><CODE>CAMAC_IOFF<A NAME="DOCF2" HREF="ppi6camac_foot.html#FOOT2">(2)</A>
+- выключает линию <VAR>INHIBIT</VAR>
+</DL>
+
+<P>
+Команды доступа к регистрам контроллера крейта:
+
+
+<DL COMPACT>
+
+<DT><CODE>CAMAC_READ_LM</CODE>
+<DD>
+- прочитать в <CODE>*argp</CODE> регистр маски и запросов;
+
+<DT><CODE>CAMAC_WRITE_LM</CODE>
+<DD>
+- запиши из <CODE>*argp</CODE> регистр маски и запросов. 
+	Формат этого регистра можно найти в описании крейт-контроллера
+	К0607;
+	
+<DT><CODE>CAMAC_READ_HB</CODE>
+<DD>
+- прочитай в <CODE>*argp</CODE> регистр старшего байта;
+
+<DT><CODE>CAMAC_WRITE_HB</CODE>
+<DD>
+- запиши из <CODE>*argp</CODE> в регистр старшего байта;
+
+<DT><CODE>CAMAC_READ_CONTROL</CODE>
+<DD>
+- прочитать регистр статуса и управления контроллера;
+
+<DT><CODE>CAMAC_WRITE_CONTROL</CODE>
+<DD>
+ - записать регистр статуса и управления контроллера
+	Формат этого регистра можно найти в описании крейт-контроллера
+	К0607.
+</DL>
+
+<P>
+При успешном выполнении <CODE>ioctl</CODE> возвращает <CODE>0</CODE> или положительное
+число, в котором закодирован осмысленный ответ. При ошибке
+возвращается <CODE>-1</CODE> и номер ошибки записывается в <CODE>errno</CODE>.
+
+
+
+
+<H2><A NAME="SEC12" HREF="ppi6camac_toc.html#TOC12">Макросы, определенные в ppi6camac.h</A></H2>
+
+<P>
+Макросы и функции в файле <TT>`ppi6camac.h'</TT> служат двум целям.
+
+
+<P>
+Во-первых они кодируют параметры, такие как <CODE>N</CODE>, <CODE>A</CODE>,
+<CODE>F</CODE> и другие, для передачи через системные вызова драйверу.
+(see section <A HREF="ppi6camac.html#SEC11">ioctl()</A>, see section <A HREF="ppi6camac.html#SEC9">lseek()</A>).
+
+
+<P>
+Во-вторых они используются для сокрытия деталей реализации
+и облегчения работы с КАМАКом. В этом разделе описаны именно
+последние. Описанные макросы обеспечивают достаточно полный
+набор инструментов для работы с КАМАКом.
+
+
+
+
+<H3><A NAME="SEC13" HREF="ppi6camac_toc.html#TOC13">Кодирование</A></H3>
+
+<P>
+<A NAME="IDX6"></A>
+<CODE>int NAF(n,a,f)</CODE> - кодирует <CODE>n</CODE>, <CODE>a</CODE>, <CODE>f</CODE> для функций 
+<CODE>lseek</CODE>, <CODE>ioctl</CODE> и <CODE>CAM</CODE> для 
+проведения 16-и битового КАМАК цикла. 
+
+
+<P>
+<A NAME="IDX7"></A>
+<CODE>int NAF24(n,a,f)</CODE> - кодирует <CODE>n</CODE>, <CODE>a</CODE>, <CODE>f</CODE> для функций 
+<CODE>lseek</CODE>, <CODE>ioctl</CODE> и <CODE>CAM</CODE> для
+проведения 24-х битового КАМАК цикла. 
+
+
+<P>
+<CODE>int CAM_L2G(int l)</CODE> - преобразование номера позиции в крейте в 
+номер группового запроса.
+
+
+
+
+<H3><A NAME="SEC14" HREF="ppi6camac_toc.html#TOC14">Проведение КАМАК цикла</A></H3>
+
+<P>
+<A NAME="IDX8"></A>
+<CODE>int CAM(int fd, int naf, unsigned *pdata)</CODE> - проводит 16-и
+разрядный КАМАК цикл,
+с данными <CODE>*pdata</CODE>. <CODE>pdata</CODE> может быть <VAR>NULL</VAR>.
+
+
+<P>
+<A NAME="IDX9"></A>
+<CODE>int CAMW(int fd, int naf, unsigned data)</CODE> - проводит 16-и
+разрядный КАМАК цикл записи, с данными <CODE>data</CODE>.
+
+
+<P>
+<A NAME="IDX10"></A>
+<CODE>int CAM24(int fd, int naf, unsigned *pdata)</CODE> - проводит 24-х
+разрядный КАМАК цикл,
+с данными <CODE>*pdata</CODE>. <CODE>pdata</CODE> может быть <VAR>NULL</VAR>.
+
+
+<P>
+<A NAME="IDX11"></A>
+<CODE>int CAM24W(int fd, int naf, unsigned data)</CODE> - проводит 24-х
+разрядный КАМАК цикл записи, с данными <CODE>data</CODE>.
+
+
+<P>
+Параметры функции:
+<DL COMPACT>
+
+<DT><CODE>fd</CODE>
+<DD>
+дескриптор открытого файла устройства, соответствующего
+КАМАК крейту;
+
+<DT><CODE>naf</CODE>
+<DD>
+<VAR>NAF</VAR> инструкция для проведения обмена.
+
+</DL>
+
+<P>
+Функции
+возвращают ответ <CODE>X</CODE>, <CODE>Q</CODE> в младших двух битах. При
+ошибках возвращают <CODE>-1</CODE>.
+
+
+
+
+<H3><A NAME="SEC15" HREF="ppi6camac_toc.html#TOC15">Блочные передачи</A></H3>
+
+<P>
+<A NAME="IDX12"></A>
+<A NAME="IDX13"></A>
+<CODE>int CAM_READ( int fd, int naf, unsigned * buf, int num)</CODE>
+
+
+<P>
+<CODE>int CAM_WRITE( int fd, int naf, unsigned * buf, int num)</CODE>
+
+
+<P>
+<CODE>CAM_READ</CODE> служит для чтения блока данных из КАМАК блока,
+<CODE>CAM_WRITE</CODE> для записи блока данных в КАМАК блок. 
+
+
+<P>
+Параметры функции:
+<DL COMPACT>
+
+<DT><CODE>fd</CODE>
+<DD>
+дескриптор открытого файла устройства, соответствующего
+КАМАК крейту;
+
+<DT><CODE>naf</CODE>
+<DD>
+<VAR>NAF</VAR> инструкция для проведения обмена. Может означать как
+16-и так и 24-х битовый обмен.(See section <A HREF="ppi6camac.html#SEC13">Кодирование</A>.);
+
+<DT><CODE>buf</CODE>
+<DD>
+адрес массива данных. Массив должен состоять из беззнаковых
+целых и иметь достаточный размер;
+
+<DT><CODE>num</CODE>
+<DD>
+требуемое количество обменов.
+</DL>
+
+<P>
+При успешном проведении обмена <CODE>CAM_READ</CODE> и <CODE>CAM_WRITE</CODE>
+возвращают ответ <CODE>X</CODE> и <CODE>Q</CODE> в двух младших битах. При
+ошибке возвращается <CODE>-1</CODE>.
+
+
+
+
+<H3><A NAME="SEC16" HREF="ppi6camac_toc.html#TOC16">Специальные функции</A></H3>
+
+<P>
+<A NAME="IDX14"></A>
+<CODE>int CAM_C(int fd)</CODE> - проводит <VAR>Clear</VAR> цикл.
+
+
+<P>
+Возвращает <CODE>0</CODE> при успешном выполнении, 
+<CODE>-1</CODE> при ошибке. 
+
+
+<P>
+<A NAME="IDX15"></A>
+<CODE>int CAM_Z(int fd)</CODE> - проводит <VAR>Zero</VAR> цикл.
+
+
+<P>
+Возвращает <CODE>0</CODE> при успешном выполнении, 
+<CODE>-1</CODE> при ошибке.
+		 
+
+
+<H3><A NAME="SEC17" HREF="ppi6camac_toc.html#TOC17">Ожидание <VAR>LAM</VAR> запроса</A></H3>
+
+<P>
+<A NAME="IDX16"></A>
+<CODE>int CAM_LWAITG(int fd, int g, int timeout )</CODE> - ожидает 
+появление <VAR>LAM</VAR> в групповом запросе <CODE>g</CODE>.
+
+
+<P>
+<A NAME="IDX17"></A>
+<CODE>int CAM_LWAIT(int fd, int l, int timeout)</CODE> - ожидает появление LAM от 
+блока в позиции <CODE>l</CODE>.  
+
+
+<DL COMPACT>
+
+<DT><CODE>timeout &#62; 0</CODE>
+<DD>
+ - ожидает появление <VAR>LAM</VAR> в групповом запросе <CODE>request</CODE> в течении
+таймаута. При возникновении <VAR>LAM</VAR> возвращает остаток от таймаута.
+( 0 так же возможен. например <VAR>LAM</VAR> прилетел в последний момент);
+
+<DT><CODE>timeout = 0</CODE>
+<DD>
+ - проверяет наличие указанного <VAR>LAM</VAR> запроса. При его наличие
+возвращает <CODE>0</CODE>, иначе <CODE>-1</CODE>;
+
+<DT><CODE>timeout &#60; 0</CODE>
+<DD>
+ - навеки зависает в ожидании <VAR>LAM</VAR>
+
+</DL>
+
+<P>
+При отсутствии <VAR>LAM</VAR> запроса в течении указанного таймаута
+возвращается ошибка <VAR>ETIME</VAR>.
+
+
+<P>
+Ожидание таймаута может быть также прервано немаскированным 
+сигналом. В этом случае возвращается соответствующая ошибка.
+
+
+<P>
+<A NAME="IDX18"></A>
+<CODE>int CAM_L2G(int l)</CODE> - преобразование номера позиции в крейте в 
+номер группового запроса.
+
+
+
+
+<H3><A NAME="SEC18" HREF="ppi6camac_toc.html#TOC18">Линия <VAR>INHIBIT</VAR></A></H3>
+
+<P>
+<A NAME="IDX19"></A>
+<CODE>int CAM_ION(int fd)</CODE> -- включает линию <CODE>INHIBIT</CODE>;
+
+
+<P>
+<A NAME="IDX20"></A>
+<CODE>int CAM_IOFF(int fd)</CODE> -- выключает линию <VAR>INHIBIT</VAR>;
+
+
+<P>
+<A NAME="IDX21"></A>
+<CODE>int CAM_I(int fd)</CODE> - проверка состояния линии <VAR>INHIBIT</VAR>.
+	Возвращает <CODE>0</CODE> если выключена, <CODE>1</CODE> если включена.
+
+
+<P>
+Функции <CODE>CAM_ION</CODE>, <CODE>CAM_IOFF</CODE> и <CODE>CAM_I</CODE>
+возвращают <CODE>-1</CODE> при ошибке.
+
+
+
+
+<H2><A NAME="SEC19" HREF="ppi6camac_toc.html#TOC19">Сообщения об ошибках</A></H2>
+
+<P>
+Драйвер сообщает о следующих ошибках:
+
+
+<DL COMPACT>
+
+<DT><VAR>EIO</VAR>
+<DD>
+ошибка ввода/вывода. Например выключен или отключен 
+крейт<A NAME="DOCF3" HREF="ppi6camac_foot.html#FOOT3">(3)</A>;
+
+<DT><VAR>EFAULT</VAR>
+<DD>
+в функцию передан неправильный адрес буфера <CODE>buf</CODE> (для
+функций <CODE>read</CODE> и <CODE>write</CODE>) или параметр <CODE>argp</CODE> (в
+функции <CODE>ioctl</CODE>);
+
+<DT><VAR>EINVAL</VAR>
+<DD>
+неправильный аргумент при вызове функции;
+
+<DT><VAR>ENOMEM</VAR>
+<DD>
+не хватает памяти для выполнения операции;
+
+<DT><VAR>ETIME</VAR>
+<DD>
+не дождались указанного <VAR>LAM</VAR> запроса в указанный отрезок времени.
+</DL>
+
+
+
+<H1><A NAME="SEC20" HREF="ppi6camac_toc.html#TOC20">Планы на будущее</A></H1>
+
+<P>
+Проверка и обкатка драйвера, добавление новых возможностей.
+
+
+<P>
+Вопросы:
+
+
+<P>
+Нужно ли ожидание LAM по маске ?
+
+
+<P>
+Нужен ли захват КАМАК блоков, и, если нужно, то как это
+должно выглядеть ? Должна ли это быть чисто информационной функция,
+или надо отвергать все попытки домогаться до уже захваченного блока ?
+
+
+<P>
+работа над ошибками. Как улучшить ?
+
+
+<P>
+Принимаю вопросы, замечания и предложения 
+
+
+<P>
+			Алексей Никифоров
+
+
+<P>
+			nikiforov@inp.nsk.su
+
+
+
+
+<H1><A NAME="SEC21" HREF="ppi6camac_toc.html#TOC21">Программа <CODE>camt</CODE> ручной контроллер</A></H1>
+
+<P>
+Интерактивная программа <CODE>camt</CODE> написана для работы в качестве ручного
+контроллера и для проверки и отладки КАМАК драйвера.
+
+
+<P>
+При старте, и после
+выполнения очередной строчки выдает приглашение ко вводу.
+Программа принимает последовательность однобуквенных команд.
+Команды могут сопровождаться параметрами.
+
+
+
+
+<H2><A NAME="SEC22" HREF="ppi6camac_toc.html#TOC22">Команды</A></H2>
+
+<P>
+Команды программы разделяются на три группы:
+
+
+
+<OL>
+<LI>
+
+Команды, выполняющие реальные действия, такие как открытие файла или 
+проведение КАМАК цикла. За большинством таких команд 
+может следовать необязательный параметр - к-во повторений этой команды. 
+При отсутствии этого параметра команда повторяется один раз;
+
+<LI>
+
+Команды, изменяющие или проверяющие содержимое переменных программы, 
+таких как <CODE>n</CODE>, <CODE>a</CODE>, <CODE>f</CODE>. При вызове такой команды
+без параметров выдается значение этой переменной, при
+вызове с параметром переменной присваивается это значение;
+
+<LI>
+
+информационные команды, показывающие результат выполнения
+других команд.
+</OL>
+
+<P>
+Ниже перечислены основные команды программы.
+
+
+
+
+<H3><A NAME="SEC23" HREF="ppi6camac_toc.html#TOC23">Команды обмена</A></H3>
+
+<DL COMPACT>
+
+<DT><CODE>o <VAR>имя_файла</VAR></CODE>
+<DD>
+открывает файл устройства, соответствующего КАМАК крейту. Переменной
+<CODE>s</CODE> присваивается значение полученного дескриптора;
+
+<DT><CODE>e</CODE>
+<DD>
+закрывает текущий дескриптор; 
+
+<DT><CODE>C</CODE>
+<DD>
+проводит цикл <VAR>Clear</VAR>;
+
+<DT><CODE>Z</CODE>
+<DD>
+проводит цикл <VAR>Zero</VAR>
+
+<DT><CODE>c [count]</CODE>
+<DD>
+проводит КАМАК цикл с текущими <CODE>n</CODE>, <CODE>a</CODE>, <CODE>f</CODE>. Данные
+читаются/пишутся в/из переменной <CODE>d</CODE> (data). Результат проведения
+КАМАК цикла можно посмотреть командой <CODE>x</CODE>;
+
+<DT><CODE>r [count]</CODE>
+<DD>
+проводит КАМАК цикл чтения с блоком данных (<CODE>CAM_READ</CODE>).
+Данные читаются в массив <CODE>D</CODE>(<VAR>Data</VAR>), размер блока 
+данных определяется переменой <CODE>b</CODE>(<VAR>block_size</VAR>);
+
+<DT><CODE>w [count]</CODE>
+<DD>
+проводит КАМАК цикл записи с блоком данных (<CODE>CAM_WRITE</CODE>).
+Данные записываются в массив <CODE>D</CODE>(<VAR>Data</VAR>), размер блока 
+данных определяется переменой <CODE>b</CODE>(<VAR>block_size</VAR>);
+
+<DT><CODE>L [count]</CODE>
+<DD>
+ждет появления <VAR>LAM</VAR> запроса от позиции в крейте, 
+указанной командой <CODE>G</CODE> или группового запроса, указанного
+командой <CODE>g</CODE> в течении таймаута <CODE>T</CODE>;
+
+<DT><CODE>I</CODE>
+<DD>
+проверить состояние линии <VAR>Inhibit</VAR>;
+
+<DT><CODE>I&#60;value&#62;</CODE>
+<DD>
+включить/выключить <VAR>Inhibit</VAR>; 
+
+<DT><CODE>l[count]</CODE>
+<DD>
+выполняет <CODE>lseek</CODE> с установленными <CODE>n</CODE>, <CODE>a</CODE>, <CODE>f</CODE> и 
+признаком работы со старшим байтом <CODE>h</CODE>;
+
+<DT><CODE>R [count]</CODE>
+<DD>
+выполняет <CODE>read</CODE> с параметрами установленными функцией <CODE>lseek</CODE>;
+
+<DT><CODE>W [count]</CODE>
+<DD>
+выполняет <CODE>write</CODE> с параметрами установленными функцией <CODE>lseek</CODE>;
+
+<DT><CODE>q</CODE>
+<DD>
+выход из программы.
+</DL>
+
+
+
+<H3><A NAME="SEC24" HREF="ppi6camac_toc.html#TOC24">Команды-переменные</A></H3>
+
+<DL COMPACT>
+
+<DT><CODE>s[value]</CODE>
+<DD>
+дескриптор файла;
+
+<DT><CODE>n,a,f</CODE>
+<DD>
+<CODE>n</CODE>,<CODE>a</CODE>,<CODE>f</CODE>;
+
+<DT><CODE>h[value]</CODE>
+<DD>
+признак работы со старшим байтом;
+
+<DT><CODE>d[value]</CODE>
+<DD>
+данные для обмена (<CODE>data</CODE>);
+
+<DT><CODE>D[val [val [val ...]]]</CODE>
+<DD>
+массив данных (<CODE>Data</CODE>);
+
+<DT><CODE>F</CODE>
+<DD>
+заполни массив данных последовательностью 0, 1, 2, ... , bs-1;
+
+<DT><CODE>b[val]</CODE>
+<DD>
+размер массива данных в словах (<CODE>bs</CODE>);
+
+<DT><CODE>g[val]</CODE>
+<DD>
+номер группового запроса;
+
+<DT><CODE>G[val]</CODE>
+<DD>
+номер блока, от которого ожидается <VAR>LAM</VAR> запрос;
+
+<DT><CODE>T[val]</CODE>
+<DD>
+таймаут;
+
+</DL>
+
+<P>
+Если при выполнении этих команд произошла ошибка, то об этом 
+будет выведено соответствующее сообщение.
+
+
+
+
+<H3><A NAME="SEC25" HREF="ppi6camac_toc.html#TOC25">Информационные команды</A></H3>
+
+<DL COMPACT>
+
+<DT><CODE>x</CODE>
+<DD>
+ответ на последнюю проведенную операцию;
+
+<DT><CODE>t</CODE>
+<DD>
+сколько времени заняла последняя операция;
+
+<DT><CODE>?</CODE>
+<DD>
+печатает экран подсказки.
+</DL>
+
+
+
+<H2><A NAME="SEC26" HREF="ppi6camac_toc.html#TOC26">Пример работы</A></H2>
+
+
+<PRE>
+$ camt
+ camt from ppi6camac 0.3.1a
+&#62;o /dev/ppi0
+fd=3
+&#62;n6 f16 a0 d0xa c x
+res=3
+&#62;f0 c d x
+data=0xa
+res=3
+&#62;
+</PRE>
+
+
+
+<H1><A NAME="SEC27" HREF="ppi6camac_toc.html#TOC27">Список функций</A></H1>
+<P>
+Jump to:
+<A HREF="#findex_c">c</A>
+-
+<A HREF="#findex_l">l</A>
+-
+<A HREF="#findex_n">n</A>
+-
+<A HREF="#findex_o">o</A>
+-
+<A HREF="#findex_r">r</A>
+-
+<A HREF="#findex_w">w</A>
+<P>
+<H2><A NAME="findex_c">c</A></H2>
+<DIR>
+<LI><A HREF="ppi6camac.html#IDX8">CAM</A>
+<LI><A HREF="ppi6camac.html#IDX10">CAM24</A>
+<LI><A HREF="ppi6camac.html#IDX11">CAM24W</A>
+<LI><A HREF="ppi6camac.html#IDX14">CAM_C</A>
+<LI><A HREF="ppi6camac.html#IDX21">CAM_I</A>
+<LI><A HREF="ppi6camac.html#IDX20">CAM_IOFF</A>
+<LI><A HREF="ppi6camac.html#IDX19">CAM_ION</A>
+<LI><A HREF="ppi6camac.html#IDX18">CAM_L2G</A>
+<LI><A HREF="ppi6camac.html#IDX17">CAM_LWAIT</A>
+<LI><A HREF="ppi6camac.html#IDX16">CAM_LWAITG</A>
+<LI><A HREF="ppi6camac.html#IDX12">CAM_READ</A>
+<LI><A HREF="ppi6camac.html#IDX13">CAM_WRITE</A>
+<LI><A HREF="ppi6camac.html#IDX15">CAM_Z</A>
+<LI><A HREF="ppi6camac.html#IDX9">CAMW</A>
+<LI><A HREF="ppi6camac.html#IDX2">close</A>
+</DIR>
+<H2><A NAME="findex_l">l</A></H2>
+<DIR>
+<LI><A HREF="ppi6camac.html#IDX3">lseek</A>
+</DIR>
+<H2><A NAME="findex_n">n</A></H2>
+<DIR>
+<LI><A HREF="ppi6camac.html#IDX6">NAF</A>
+<LI><A HREF="ppi6camac.html#IDX7">NAF24</A>
+</DIR>
+<H2><A NAME="findex_o">o</A></H2>
+<DIR>
+<LI><A HREF="ppi6camac.html#IDX1">open</A>
+</DIR>
+<H2><A NAME="findex_r">r</A></H2>
+<DIR>
+<LI><A HREF="ppi6camac.html#IDX4">read</A>
+</DIR>
+<H2><A NAME="findex_w">w</A></H2>
+<DIR>
+<LI><A HREF="ppi6camac.html#IDX5">write</A>
+</DIR>
+
+
+<P><HR><P>
+This document was generated on 24 February 2000 using
+<A HREF="http://wwwinfo.cern.ch/dis/texi2html/">texi2html</A>&nbsp;1.56k.
+</BODY>
+</HTML>

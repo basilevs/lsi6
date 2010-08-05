@@ -1,0 +1,24 @@
+
+number_cards=1
+number_channels=6
+
+# ----------------------------------------------------------
+
+cardnum=0
+
+while true; do
+    chnum=0
+    while true; do
+
+    mknod -m 0666 /dev/lsi6card$(($cardnum+1))channel$(($chnum+1)) c $((122+$cardnum)) $chnum
+
+    chnum=$(($chnum+1))
+    if test "$chnum" == "$number_channels"; then
+	break;
+    fi
+    done
+    cardnum=$(($cardnum+1))
+    if test "$cardnum" == "$number_cards"; then
+	break;
+    fi
+done

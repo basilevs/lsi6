@@ -1,0 +1,12 @@
+int lsi6_wait_channel(lsi6_dev_t *lsi, int chnum);
+int k0607_write_csr(lsi6_dev_t *lsi, int chnum, int CSR);
+int k0607_read_csr(lsi6_dev_t *lsi, int chnum, int *CSR);
+int k0607_enable_lgroup(lsi6_dev_t *lsi, int chnum, int lgroup);
+int k0607_read_lmr(lsi6_dev_t *lsi, int chnum, int *lmr);
+int k0607_write_lmr(lsi6_dev_t *lsi, int chnum, int lmr);
+int k0607_write_hb(lsi6_dev_t *lsi, int chnum, int hb);
+int k0607_read_hb(lsi6_dev_t *lsi, int chnum, int *hb);
+int lsi6_do_naf(lsi6_dev_t *lsi, int chnum, int n, int a, int f, unsigned long *data);
+int lsi6_do_naf24(lsi6_dev_t *lsi, int chnum, int n, int a, int f, unsigned long *data);
+int lsi6_do_block(lsi6_dev_t *lsi, int chnum, int n, int a, int f, unsigned long *data, int *count);
+int lsi6_do_block24(lsi6_dev_t *lsi, int chnum, int n, int a, int f, unsigned long *data, int *count);

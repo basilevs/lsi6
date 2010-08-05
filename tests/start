@@ -1,0 +1,2 @@
+./catch_lam 18 >/dev/null &
+./indicator 12
