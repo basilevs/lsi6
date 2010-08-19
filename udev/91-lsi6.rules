@@ -1,0 +1,1 @@
+SUBSYSTEM=="pci", SYSFS{device}=="0x3333", SYSFS{vendor}=="0x1172", PROGRAM="/root/ttt.pl %M %m"

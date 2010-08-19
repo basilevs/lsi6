@@ -1,9 +1,10 @@
 #define LSI6_WINDOW_SIZE 	0x100000
 #define LSI6_VENDOR_ID		0x1172
 #define LSI6_DEVICE_ID		0x3333
-#define LSI6_MAJOR 		122
+//#define LSI6_MAJOR 		122
 #define LSI6_NUMCHANNELS	6
 #define LSI6_NUMCARDS		4
+#define LSI6_DEVNAME		"lsi6card%dchannel%d"
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,2,18)
 typedef struct wait_queue *wait_queue_head_t;
@@ -14,6 +15,7 @@ typedef struct {
     char *base;
     int irq;
     int card;
+    int major;
     unsigned short CSR[LSI6_NUMCHANNELS];
     wait_queue_head_t LWQ[LSI6_NUMCHANNELS][K0607_LGROUPS];
     int LWQ_flags[LSI6_NUMCHANNELS][K0607_LGROUPS];

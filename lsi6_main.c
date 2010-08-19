@@ -35,9 +35,9 @@ extern void kfree(const void *);
 #endif
 
 #define DRV_NAME	"lsi6"
-#define DRV_VERSION	"version 1.04"
+#define DRV_VERSION	"version 1.05"
 #define DRV_RELDATE	"May 2008"
-#define DRV_AUTHOR	"V.Mamkin"
+#define DRV_AUTHOR	"V.Mamkin, P.Cheblakov"
 
 MODULE_AUTHOR(DRV_AUTHOR);
 MODULE_DESCRIPTION("lsi6 - line serial interface for CAMAC");
@@ -45,6 +45,8 @@ MODULE_LICENSE("GPL");
 
 static const char version[] =
 KERN_INFO DRV_NAME " camac interface module, " DRV_VERSION ", " DRV_RELDATE ", " DRV_AUTHOR "\n";
+
+static struct class *lsi6_class;
 
 static lsi6_dev_t lsi6_dev[LSI6_NUMCARDS];
 
@@ -60,7 +62,21 @@ static struct pci_device_id lsi6_tbl[] = {
 };
 MODULE_DEVICE_TABLE(pci, lsi6_tbl);
 
+static int get_device_no(int major)
+{
+    int i;
+    for (i = 0; i < card_no; i++)
+	if (lsi6_dev[i].major == major)
+	    return i;
+    
+    return -1;	//TODO fix it. it's very dangerous
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
 static irqreturn_t lsi6_interrupt(int irq, void *dev_id)
+#else
+static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
+#endif
 {
     lsi6_dev_t *lsi = (lsi6_dev_t *)dev_id;
     lsi6_regs_t *lsi6_regs = (lsi6_regs_t *)lsi->base;
@@ -93,7 +109,7 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id)
 static int lsi6_open(struct inode * inode, struct file * file)
 {
     unsigned int chnum = MINOR(inode->i_rdev);
-    unsigned int card = MAJOR(inode->i_rdev) - LSI6_MAJOR;
+    unsigned int card = get_device_no(MAJOR(inode->i_rdev));
     lsi6_dev_t *lsi = &lsi6_dev[card];
     lsi6_regs_t *regs = (lsi6_regs_t *)lsi->base;
     unsigned long flags;
@@ -120,7 +136,7 @@ static int lsi6_ioctl(struct inode *inode, struct file *file,
 		    unsigned int cmd, unsigned long arg)
 {
     int chnum = MINOR(inode->i_rdev);
-    unsigned int card = MAJOR(inode->i_rdev) - LSI6_MAJOR;
+    unsigned int card = get_device_no(MAJOR(inode->i_rdev));
     lsi6_dev_t *lsi = &lsi6_dev[card];
     unsigned long * ptr = (unsigned long * ) arg;
     unsigned long x;
@@ -270,7 +286,7 @@ static ssize_t lsi6_read(struct file * file, char * buf,
 		       size_t count, loff_t *ppos)
 {
     unsigned int chnum=MINOR(file->f_dentry->d_inode->i_rdev);
-    unsigned int card = MAJOR(file->f_dentry->d_inode->i_rdev) - LSI6_MAJOR;
+    unsigned int card = get_device_no(MAJOR(file->f_dentry->d_inode->i_rdev));
     lsi6_dev_t *lsi = &lsi6_dev[card];
     int naf = *ppos;
     int n,a,f, rc;
@@ -330,7 +346,7 @@ static ssize_t lsi6_write(struct file * file, const char * buf,
 		        size_t count, loff_t *ppos)
 {
     unsigned int chnum=MINOR(file->f_dentry->d_inode->i_rdev);
-    unsigned int card = MAJOR(file->f_dentry->d_inode->i_rdev) - LSI6_MAJOR;
+    unsigned int card = get_device_no(MAJOR(file->f_dentry->d_inode->i_rdev));
     lsi6_dev_t *lsi = &lsi6_dev[card];
     int naf = *ppos;
     int n,a,f, rc;
@@ -423,8 +439,10 @@ static int lsi6_init_one (struct pci_dev *pdev,
 				     const struct pci_device_id *ent)
 {
     int i;
+    int lsi6_major;
     lsi6_regs_t *regs;
     lsi6_dev_t *lsi;
+    struct device *err_dev;
 
     card_no++;
     if (card_no > (LSI6_NUMCARDS - 1)) 
@@ -455,9 +473,22 @@ static int lsi6_init_one (struct pci_dev *pdev,
 	    LSI6_WINDOW_SIZE, lsi->pciaddr);
 	goto error_with_release;
     }
-    if (register_chrdev (LSI6_MAJOR + card_no, "lsi6", &lsi6_fops)) {
-	printk(KERN_ERR DRV_NAME ": unable to get major %d\n", LSI6_MAJOR + card_no);
+    
+    lsi6_major = register_chrdev(0, DRV_NAME, &lsi6_fops);
+    if (lsi6_major < 0) {
+	printk(KERN_ERR DRV_NAME ": unable to register device with error %d\n", lsi6_major);
 	goto error_with_unmap;
+    }
+    
+    lsi6_class = class_create(THIS_MODULE, DRV_NAME);
+    
+    for (i = 0; i < LSI6_NUMCHANNELS; i++) 
+    {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
+	err_dev = device_create(lsi6_class, NULL, MKDEV(lsi6_major, i), NULL, LSI6_DEVNAME, card_no, i);
+#else
+	err_dev = device_create(lsi6_class, NULL, MKDEV(lsi6_major, i), LSI6_DEVNAME, card_no, i);
+#endif
     }
 
     for (i = 0; i < LSI6_NUMCHANNELS; i++) {
@@ -469,7 +500,7 @@ static int lsi6_init_one (struct pci_dev *pdev,
     regs = (lsi6_regs_t *)lsi->base;
     writel(0, &regs->intr_global);
 
-    if (request_irq(lsi->irq, lsi6_interrupt, IRQF_SHARED, "lsi6", lsi)) {
+    if (request_irq(lsi->irq, lsi6_interrupt, IRQF_SHARED, DRV_NAME, lsi)) {
 	printk (KERN_ERR DRV_NAME ": Can't request irq %d\n", lsi->irq);
 	goto error_with_unmap;
     }
@@ -478,6 +509,7 @@ static int lsi6_init_one (struct pci_dev *pdev,
     writel(1, &regs->intr_global);
     
     lsi->card = card_no;
+    lsi->major = lsi6_major;
     pci_set_drvdata(pdev, lsi);
 
     return 0;
@@ -488,13 +520,24 @@ error_with_release:
     release_mem_region (lsi->pciaddr, LSI6_WINDOW_SIZE);
     return -ENODEV;
 }
+
 static void lsi6_remove_one (struct pci_dev *pdev)
 {
+    int i;
+    int lsi6_major;
     lsi6_dev_t *lsi = pci_get_drvdata(pdev);
     lsi6_regs_t *regs = (lsi6_regs_t *)lsi->base;
+    lsi6_major = lsi->major;
 
     writel(0, &regs->intr_global);
-    unregister_chrdev(LSI6_MAJOR + lsi->card, "lsi6");
+    
+    for (i = 0; i < LSI6_NUMCHANNELS; i++) 
+    {
+	device_destroy(lsi6_class, MKDEV(lsi6_major, i));
+    }
+    class_unregister(lsi6_class);
+    class_destroy(lsi6_class);
+    unregister_chrdev(lsi6_major, DRV_NAME);
 
     free_irq(lsi->irq, lsi);
 
