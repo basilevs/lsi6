@@ -35,8 +35,8 @@ extern void kfree(const void *);
 #endif
 
 #define DRV_NAME	"lsi6"
-#define DRV_VERSION	"version 1.05"
-#define DRV_RELDATE	"May 2008"
+#define DRV_VERSION	"version 1.06"
+#define DRV_RELDATE	"16 Sep. 2010"
 #define DRV_AUTHOR	"V.Mamkin, P.Cheblakov"
 
 MODULE_AUTHOR(DRV_AUTHOR);
