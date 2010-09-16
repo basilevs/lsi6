@@ -65,7 +65,7 @@ MODULE_DEVICE_TABLE(pci, lsi6_tbl);
 static int get_device_no(int major)
 {
     int i;
-    for (i = 0; i < card_no; i++)
+    for (i = 0; i <= card_no; i++)
 	if (lsi6_dev[i].major == major)
 	    return i;
     
