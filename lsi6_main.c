@@ -485,9 +485,9 @@ static int lsi6_init_one (struct pci_dev *pdev,
     for (i = 0; i < LSI6_NUMCHANNELS; i++) 
     {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
-	err_dev = device_create(lsi6_class, NULL, MKDEV(lsi6_major, i), NULL, LSI6_DEVNAME, card_no, i);
+	err_dev = device_create(lsi6_class, NULL, MKDEV(lsi6_major, i), NULL, LSI6_DEVNAME, card_no+1, i+1);
 #else
-	err_dev = device_create(lsi6_class, NULL, MKDEV(lsi6_major, i), LSI6_DEVNAME, card_no, i);
+	err_dev = device_create(lsi6_class, NULL, MKDEV(lsi6_major, i), LSI6_DEVNAME, card_no+1, i+1);
 #endif
     }
 
