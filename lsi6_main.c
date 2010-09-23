@@ -21,11 +21,6 @@
 #include "lsi6camac.h"
 #include "lsi6_lib.h"
 
-/*
-extern void *kmalloc(size_t, int);
-extern void kfree(const void *);
-*/
-
 #undef DEBUG
 
 #ifdef DEBUG
@@ -35,8 +30,8 @@ extern void kfree(const void *);
 #endif
 
 #define DRV_NAME	"lsi6"
-#define DRV_VERSION	"1.06"
-#define DRV_RELDATE	"16 Sep. 2010"
+#define DRV_VERSION	"1.06.1"
+#define DRV_RELDATE	"23 Sep. 2010"
 #define DRV_AUTHOR	"V.Mamkin, P.Cheblakov"
 
 MODULE_AUTHOR(DRV_AUTHOR);
@@ -70,7 +65,7 @@ static int get_device_no(int major)
 	if (lsi6_dev[i].major == major)
 	    return i;
     
-    return -1;	//TODO fix it. it's very dangerous
+    return -1;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
@@ -109,12 +104,18 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
 }
 static int lsi6_open(struct inode * inode, struct file * file)
 {
-    unsigned int chnum = MINOR(inode->i_rdev);
-    unsigned int card = get_device_no(MAJOR(inode->i_rdev));
-    lsi6_dev_t *lsi = &lsi6_dev[card];
-    lsi6_regs_t *regs = (lsi6_regs_t *)lsi->base;
     unsigned long flags;
     int csr;
+    unsigned int chnum = MINOR(inode->i_rdev);
+    unsigned int card = get_device_no(MAJOR(inode->i_rdev));
+    lsi6_dev_t *lsi;
+    lsi6_regs_t *regs;
+    
+    if (card < 0)
+	return -ENXIO;
+    
+    lsi = &lsi6_dev[card];
+    regs = (lsi6_regs_t *)lsi->base;
 
     DP(printk(DRV_NAME ": open channel %d\n", chnum));
 
@@ -137,14 +138,19 @@ static int lsi6_ioctl(struct inode *inode, struct file *file,
 		    unsigned int cmd, unsigned long arg)
 {
     int chnum = MINOR(inode->i_rdev);
-    unsigned int card = get_device_no(MAJOR(inode->i_rdev));
-    lsi6_dev_t *lsi = &lsi6_dev[card];
     unsigned long * ptr = (unsigned long * ) arg;
     unsigned long x;
     int n,a,f, rc;
     unsigned long flags;
     unsigned long volatile jiffies_start, jiffies_end;
     int jiffies_left;
+    unsigned int card = get_device_no(MAJOR(inode->i_rdev));
+    lsi6_dev_t *lsi;
+    
+    if (card < 0)
+	return -ENXIO;
+    
+    lsi = &lsi6_dev[card];
 
     n = N_NAF(cmd);
     a = A_NAF(cmd);
@@ -287,12 +293,17 @@ static ssize_t lsi6_read(struct file * file, char * buf,
 		       size_t count, loff_t *ppos)
 {
     unsigned int chnum=MINOR(file->f_dentry->d_inode->i_rdev);
-    unsigned int card = get_device_no(MAJOR(file->f_dentry->d_inode->i_rdev));
-    lsi6_dev_t *lsi = &lsi6_dev[card];
     int naf = *ppos;
     int n,a,f, rc;
     unsigned long x;
     unsigned long flags;
+    unsigned int card = get_device_no(MAJOR(file->f_dentry->d_inode->i_rdev));
+    lsi6_dev_t *lsi;
+    
+    if (card < 0)
+	return -ENXIO;
+    
+    lsi = &lsi6_dev[card];
 
     n = N_NAF(naf);
     a = A_NAF(naf);
@@ -347,12 +358,17 @@ static ssize_t lsi6_write(struct file * file, const char * buf,
 		        size_t count, loff_t *ppos)
 {
     unsigned int chnum=MINOR(file->f_dentry->d_inode->i_rdev);
-    unsigned int card = get_device_no(MAJOR(file->f_dentry->d_inode->i_rdev));
-    lsi6_dev_t *lsi = &lsi6_dev[card];
     int naf = *ppos;
     int n,a,f, rc;
     unsigned long x;
     unsigned long flags;
+    unsigned int card = get_device_no(MAJOR(file->f_dentry->d_inode->i_rdev));
+    lsi6_dev_t *lsi;
+    
+    if (card < 0)
+	return -ENXIO;
+
+    lsi = &lsi6_dev[card];
 
     n = N_NAF(naf);
     a = A_NAF(naf);
