@@ -48,9 +48,38 @@ static lsi6_dev_t lsi6_dev[LSI6_NUMCARDS];
 
 static int card_no = -1;
 
-static spinlock_t camlock = SPIN_LOCK_UNLOCKED;
-#define CAM_LOCK(x) spin_lock_irqsave(&camlock, x)
-#define CAM_UNLOCK(x) spin_unlock_irqrestore(&camlock, x)
+//static spinlock_t camlock = SPIN_LOCK_UNLOCKED;
+//#define CAM_LOCK(x) spin_lock_irqsave(&camlock, x)
+//#define CAM_UNLOCK(x) spin_unlock_irqrestore(&camlock, x)
+
+static void lsi6_channel_lock(lsi6_dev_t * lsi, int chnum, unsigned long * flags) {
+    if (!lsi || !flags) {
+        printk(DRV_NAME "lsi6_channel_lock was given null argument");
+        return;
+    }
+    if (chnum < 0 || chnum >= LSI6_NUMCHANNELS) {
+        printk(DRV_NAME "lsi6_channel_lock was given bad channel");
+        return;
+    }
+    spin_lock_irqsave(&lsi->channels[chnum].lock, *flags);
+}
+
+static void lsi6_channel_unlock(lsi6_dev_t * lsi, int chnum, unsigned long * flags) {
+    if (!lsi || !flags) {
+        printk(DRV_NAME "lsi6_channel_lock was given null argument");
+        return;
+    }
+    if (chnum < 0 || chnum >= LSI6_NUMCHANNELS) {
+        printk(DRV_NAME "lsi6_channel_lock was given bad channel");
+        return;
+    }
+    spin_unlock_irqrestore(&lsi->channels[chnum].lock, *flags);
+}
+
+
+#define CHAN_LOCK(x) lsi6_channel_lock(lsi, chnum, &x)
+#define CHAN_UNLOCK(x) lsi6_channel_unlock(lsi, chnum, &x)
+
 
 static struct pci_device_id lsi6_tbl[] = {
 	{ LSI6_VENDOR_ID, LSI6_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0 },
@@ -68,6 +97,7 @@ static int get_device_no(int major)
     return -1;
 }
 
+static spinlock_t intrlock = SPIN_LOCK_UNLOCKED;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
 static irqreturn_t lsi6_interrupt(int irq, void *dev_id)
 #else
@@ -77,28 +107,29 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
     lsi6_dev_t *lsi = (lsi6_dev_t *)dev_id;
     lsi6_regs_t *lsi6_regs = (lsi6_regs_t *)lsi->base;
     int intr, lmr, mask, k, chnum;
-    unsigned long flags;
+    unsigned long flags, interflags;
 
-    CAM_LOCK(flags);
-
+    spin_lock_irqsave(&intrlock, interflags);
     intr = readl(&lsi6_regs->intr);
     if (intr & 0x40) {
-	writel(0, &lsi6_regs->intr_global);
-	for (chnum = 0; chnum < LSI6_NUMCHANNELS; chnum++) {
-	    if (intr & (1 << chnum)) {
-		k0607_read_lmr(lsi, chnum, &lmr);
-		for (k = 0, mask= 0x100; k < K0607_LGROUPS; k++, mask <<=1) {
-		    if (lmr & mask) {
-			wake_up_interruptible(&lsi->LWQ[chnum][k]);
-			lsi->LWQ_flags[chnum][k] = 1;
-		    }
-		}
-		k0607_write_lmr(lsi, chnum, (~(lmr >> 8)) & 0xff);
+        writel(0, &lsi6_regs->intr_global);
+	    for (chnum = 0; chnum < LSI6_NUMCHANNELS; chnum++) {
+            CHAN_LOCK(flags);
+	        if (intr & (1 << chnum)) {
+		        k0607_read_lmr(lsi, chnum, &lmr);
+		        for (k = 0, mask= 0x100; k < K0607_LGROUPS; k++, mask <<=1) {
+		            if (lmr & mask) {
+                        wake_up_interruptible(&lsi->LWQ[chnum][k]);
+                        lsi->LWQ_flags[chnum][k] = 1;
+		            }
+		        }
+		        k0607_write_lmr(lsi, chnum, (~(lmr >> 8)) & 0xff);
+	        }
+            CHAN_UNLOCK(flags);
 	    }
-	}
-	writel(1, &lsi6_regs->intr_global);
+    	writel(1, &lsi6_regs->intr_global);
     }
-    CAM_UNLOCK(flags);
+    spin_unlock_irqrestore(&intrlock, interflags);
 
     return (irqreturn_t)IRQ_HANDLED;
 }
@@ -120,14 +151,14 @@ static int lsi6_open(struct inode * inode, struct file * file)
     DP(printk(DRV_NAME ": open channel %d\n", chnum));
 
     if (!(readl(&regs->exist) & (1 << chnum))) return -1;
-    CAM_LOCK(flags);
+    CHAN_LOCK(flags);
     if (k0607_read_csr(lsi, chnum, &csr) == -1) {
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	return -1;
     }
     lsi->CSR[chnum] |= K0607_CSR_DE;
     k0607_write_csr(lsi, chnum, lsi->CSR[chnum]);
-    CAM_UNLOCK(flags);
+    CHAN_UNLOCK(flags);
 
     file->private_data=kmalloc(sizeof(int),GFP_USER);
     *(int*)(file->private_data)=0;
@@ -135,7 +166,7 @@ static int lsi6_open(struct inode * inode, struct file * file)
     return 0;
 }
 
-static int lsi6_ioctl(struct file *file,
+static long lsi6_ioctl(struct file *file,
 		    unsigned int cmd, unsigned long arg)
 {
 		struct inode *inode = file->f_dentry->d_inode;
@@ -168,9 +199,9 @@ static int lsi6_ioctl(struct file *file,
 	    a = A_NAF(x);
 	    f = F_NAF(x);
 	    if (n > 23) return -EINVAL;
-	    CAM_LOCK(flags);
+	    CHAN_LOCK(flags);
 	    rc = lsi6_do_naf(lsi, chnum, n,a,f, &x);
-	    CAM_UNLOCK(flags);
+	    CHAN_UNLOCK(flags);
 	    *(int *)(file->private_data)=rc;
 	    return ( rc == -1 ) ? -EIO : rc;
 
@@ -183,18 +214,18 @@ static int lsi6_ioctl(struct file *file,
 	    return 0;
 
 	case CAMAC_ION: 
-	    CAM_LOCK(flags);
+	    CHAN_LOCK(flags);
 	    lsi->CSR[chnum] |= K0607_CSR_IF;
 	    rc = k0607_write_csr(lsi, chnum, lsi->CSR[chnum]);
-	    CAM_UNLOCK(flags);
+	    CHAN_UNLOCK(flags);
 	    *(int *)(file->private_data)=rc;
 	    return ( rc == -1 ) ? -EIO : rc;
 
 	case CAMAC_IOFF: 
-	    CAM_LOCK(flags);
+	    CHAN_LOCK(flags);
 	    lsi->CSR[chnum] &= ~K0607_CSR_IF;
 	    rc = k0607_write_csr(lsi, chnum, lsi->CSR[chnum]);
-	    CAM_UNLOCK(flags);
+	    CHAN_UNLOCK(flags);
 	    *(int *)(file->private_data)=rc;
 
 	    return ( rc == -1 ) ? -EIO : rc;
@@ -209,20 +240,20 @@ static int lsi6_ioctl(struct file *file,
 	if( timeout == 0 ) {
 	    int req;
 	    int mask = 0x100 << lgroup;
-	    CAM_LOCK(flags);
+	    CHAN_LOCK(flags);
 	    k0607_read_lmr(lsi, chnum, &req);
-	    CAM_UNLOCK(flags);
+	    CHAN_UNLOCK(flags);
 	    if (mask & req) return 0;
 	    return -1;
 	}
 
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	lsi->LWQ_flags[chnum][lgroup] = 0;
 	if (k0607_enable_lgroup(lsi, chnum, lgroup) == -1) {
-	    CAM_UNLOCK(flags);
+	    CHAN_UNLOCK(flags);
 	    return -EIO;
 	}
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	if (timeout < 0) {
 	    wait_event_interruptible(lsi->LWQ[chnum][lgroup], 
 		lsi->LWQ_flags[chnum][lgroup]);
@@ -246,10 +277,10 @@ static int lsi6_ioctl(struct file *file,
     if (n > 23) return -EINVAL;
 
     if (f < 8) { /* read */
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	if (cmd & CAMAC_24) rc = lsi6_do_naf24(lsi, chnum, n,a,f, &x);
 	else rc = lsi6_do_naf(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	*(int *)(file->private_data)=rc;
 	if(ptr) 
 	    if( copy_to_user(ptr, &x, sizeof(long)))
@@ -273,19 +304,19 @@ static int lsi6_ioctl(struct file *file,
 	else
 	    return -EINVAL;
 
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	if (cmd & CAMAC_24) rc = lsi6_do_naf24(lsi, chnum, n,a,f, &x);
 	else rc = lsi6_do_naf(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 
 	*(int *)(file->private_data)=rc;
 	return ( rc == -1 ) ? -EIO : rc;
     }
     else {
 	x = 0;
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	rc = lsi6_do_naf(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	*(int *)(file->private_data)=rc;
 	return ( rc == -1 ) ? -EIO : rc;
     }
@@ -323,17 +354,17 @@ static ssize_t lsi6_read(struct file * file, char * buf,
     if (buf == NULL) return -EINVAL;
    
     if(count<3){
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	rc = lsi6_do_naf(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	*(int *)(file->private_data)=rc;
         if( copy_to_user(buf, &x, 2)) return -EFAULT;
 	return ( rc == -1 ) ? -EIO : count;
     }
     else if(count == 3){
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	rc = lsi6_do_naf24(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	*(int *)(file->private_data)=rc;
 	if( copy_to_user(buf, &x, 3)) return -EFAULT;
 	return ( rc == -1 ) ? -EIO : count;
@@ -345,12 +376,12 @@ static ssize_t lsi6_read(struct file * file, char * buf,
 	tmpbuf = kmalloc(count, GFP_USER);
 	if (!tmpbuf) return -ENOMEM;
 	
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	if (naf & CAMAC_24) 
 	    rc = lsi6_do_block24(lsi, chnum, n,a,f, tmpbuf, &count_done);
 	else 
 	    rc = lsi6_do_block(lsi, chnum, n,a,f, tmpbuf, &count_done);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	*(int *)(file->private_data)=rc;
 	if (copy_to_user(buf, tmpbuf, count)) {
 	    kfree(tmpbuf);
@@ -393,9 +424,9 @@ static ssize_t lsi6_write(struct file * file, const char * buf,
 	    return -EFAULT;
 	x &= 0xffff;
 
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	rc = lsi6_do_naf(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 
 	*(int *)(file->private_data)=rc;
 	return ( rc == -1 ) ? -EIO : count;
@@ -404,9 +435,9 @@ static ssize_t lsi6_write(struct file * file, const char * buf,
 	if( copy_from_user(&x, buf, 3))
 	    return -EFAULT;
 	x &= 0xffffff;
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	rc = lsi6_do_naf24(lsi, chnum, n,a,f, &x);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 
 	*(int *)(file->private_data)=rc;
 	return ( rc == -1 ) ? -EIO : count;
@@ -419,12 +450,12 @@ static ssize_t lsi6_write(struct file * file, const char * buf,
 	    kfree( tmpbuf );
 	    return -EFAULT;
 	}
-	CAM_LOCK(flags);
+	CHAN_LOCK(flags);
 	if (naf & CAMAC_24) 
 	    rc = lsi6_do_block24(lsi, chnum, n,a,f, tmpbuf, &count_done);
 	else 
 	    rc = lsi6_do_block(lsi, chnum, n,a,f, tmpbuf, &count_done);
-	CAM_UNLOCK(flags);
+	CHAN_UNLOCK(flags);
 	*(int *)(file->private_data)=rc;
 	kfree(tmpbuf);
 	return ( rc == -1 ) ? -EIO : (count - count_done * 4);
@@ -464,6 +495,25 @@ static struct file_operations lsi6_fops = {
 	read:		lsi6_read,
 	llseek:		lsi6_lseek,
 };
+
+static int lsi6_init_channel(lsi6_channel * chan) {
+    if (!chan)
+        return -ENODEV;
+    chan->lock = SPIN_LOCK_UNLOCKED;
+    return 0;
+}
+static int lsi6_init_card(lsi6_dev_t * lsi){
+    int i, rc = 0;
+    if (!lsi)
+        return -ENODEV;
+    memset(lsi, 0, sizeof(lsi6_dev_t));
+    for (i = 0; i < LSI6_NUMCHANNELS; ++i) {
+        rc = lsi6_init_channel(&lsi->channels[i]);
+            if (!rc)
+                break;
+    }
+    return rc;
+}
 static int lsi6_init_one (struct pci_dev *pdev,
 				     const struct pci_device_id *ent)
 {
@@ -478,7 +528,7 @@ static int lsi6_init_one (struct pci_dev *pdev,
 	return -ENODEV;
 
     lsi = &lsi6_dev[card_no];
-    memset(lsi, 0, sizeof(lsi6_dev_t));
+    lsi6_init_card(lsi);
 
     i = pci_enable_device (pdev);
     if (i) {

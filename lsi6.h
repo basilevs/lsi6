@@ -11,11 +11,16 @@ typedef struct wait_queue *wait_queue_head_t;
 #endif
 
 typedef struct {
+    spinlock_t lock;
+} lsi6_channel;
+
+typedef struct {
     long pciaddr;
     char *base;
     int irq;
     int card;
     int major;
+    lsi6_channel channels[LSI6_NUMCHANNELS];
     unsigned short CSR[LSI6_NUMCHANNELS];
     wait_queue_head_t LWQ[LSI6_NUMCHANNELS][K0607_LGROUPS];
     int LWQ_flags[LSI6_NUMCHANNELS][K0607_LGROUPS];
