@@ -134,9 +134,11 @@ static int lsi6_open(struct inode * inode, struct file * file)
 
     return 0;
 }
-static int lsi6_ioctl(struct inode *inode, struct file *file,
+
+static int lsi6_ioctl(struct file *file,
 		    unsigned int cmd, unsigned long arg)
 {
+		struct inode *inode = file->f_dentry->d_inode;
     int chnum = MINOR(inode->i_rdev);
     unsigned long * ptr = (unsigned long * ) arg;
     unsigned long x;
@@ -289,6 +291,12 @@ static int lsi6_ioctl(struct inode *inode, struct file *file,
     }
     return 0;
 }
+
+static int lsi6_ioctl_locked(struct inode *inode, struct file *file,
+		    unsigned int cmd, unsigned long arg) {
+	return lsi6_ioctl(file, cmd, arg);
+}
+
 static ssize_t lsi6_read(struct file * file, char * buf,
 		       size_t count, loff_t *ppos)
 {
@@ -446,7 +454,11 @@ static int lsi6_release(struct inode * inode, struct file * file)
 static struct file_operations lsi6_fops = {
 	owner:		THIS_MODULE,
 	write:		lsi6_write,
-	ioctl:		lsi6_ioctl,
+#ifdef HAVE_UNLOCKED_IOCTL
+	unlocked_ioctl:		lsi6_ioctl,
+#else
+	ioctl:		lsi6_ioctl_locked,
+#endif
 	open:		lsi6_open,
 	release:	lsi6_release,
 	read:		lsi6_read,
