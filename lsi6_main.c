@@ -30,9 +30,9 @@
 #endif
 
 #define DRV_NAME	"lsi6"
-#define DRV_VERSION	"1.06.1"
+#define DRV_VERSION	"1.06.2"
 #define DRV_RELDATE	"23 Sep. 2010"
-#define DRV_AUTHOR	"V.Mamkin, P.Cheblakov"
+#define DRV_AUTHOR	"V.Mamkin, P.Cheblakov, V.Gulevich"
 
 MODULE_AUTHOR(DRV_AUTHOR);
 MODULE_DESCRIPTION("lsi6 - line serial interface for CAMAC");
@@ -42,7 +42,7 @@ MODULE_LICENSE("GPL");
 static const char version[] =
 KERN_INFO DRV_NAME " camac interface module, " DRV_VERSION ", " DRV_RELDATE ", " DRV_AUTHOR "\n";
 
-static struct class *lsi6_class;
+static struct class *lsi6_class = 0;
 
 static lsi6_dev_t lsi6_dev[LSI6_NUMCARDS];
 
@@ -559,8 +559,6 @@ static int lsi6_init_one (struct pci_dev *pdev,
 	goto error_with_unmap;
     }
     
-    lsi6_class = class_create(THIS_MODULE, DRV_NAME);
-    
     for (i = 0; i < LSI6_NUMCHANNELS; i++) 
     {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
@@ -614,8 +612,6 @@ static void lsi6_remove_one (struct pci_dev *pdev)
     {
 	device_destroy(lsi6_class, MKDEV(lsi6_major, i));
     }
-    class_unregister(lsi6_class);
-    class_destroy(lsi6_class);
     unregister_chrdev(lsi6_major, DRV_NAME);
 
     free_irq(lsi->irq, lsi);
@@ -635,12 +631,15 @@ static struct pci_driver lsi6_driver = {
 static int __init lsi6_init(void)
 {
 	printk(version);
+    lsi6_class = class_create(THIS_MODULE, DRV_NAME);
 	return pci_register_driver(&lsi6_driver);
 }
 
 static void __exit lsi6_cleanup(void)
 {
 	pci_unregister_driver (&lsi6_driver);
+    class_unregister(lsi6_class);
+    class_destroy(lsi6_class);
 }
 
 module_init(lsi6_init);
