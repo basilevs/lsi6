@@ -112,12 +112,15 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
     spin_lock_irqsave(&intrlock, interflags);
     intr = readl(&lsi6_regs->intr);
     if (intr & 0x40) {
-        unsigned enabled = readl(&lsi6_regs->intr_enable);
+        unsigned enabled;
+        writel(0, &lsi6_regs->intr_global);
+        enabled = readl(&lsi6_regs->intr_enable);
         // Bitmask of enabled channel interrupts
         // We are disabling them at the end of this function to reenable in scheduled interruptHandler
+        // Note that manipulations with intr_enable should be protected by intrlock
 	    for (chnum = 0; chnum < LSI6_NUMCHANNELS; chnum++) {
 	        if (intr & (1 << chnum)) {
-                if (1) {
+                if (0) {
                     lsi6_handleChannelInterrupt(&lsi->channels[chnum]);
                 } else {
                     enabled &= ~(1 << chnum);
@@ -126,16 +129,38 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
 	        }
 	    }
         writel(enabled, &lsi6_regs->intr_enable);
+        writel(1, &lsi6_regs->intr_global);
     }
     spin_unlock_irqrestore(&intrlock, interflags);
 
     return (irqreturn_t)IRQ_HANDLED;
 }
 
+//Returns 1 if channel isvalid, 0 otherwise
+static int isValidChannel(lsi6_channel * channel) {
+    int rv = 0, i, k;
+    for (i = 0; i < card_no && i < LSI6_NUMCARDS; ++i) {
+        for (k = 0; k < LSI6_NUMCHANNELS; ++k) {
+            if (&lsi6_dev[i].channels[k] == channel) {
+                rv = 1;
+                break;
+            }
+        }
+    }
+    if (!rv) {
+        printk(DRV_NAME ": channel %p can't be found\n", channel);
+        return 0;
+    }
+    if (channel->lsi != &lsi6_dev[i]) {
+        printk(DRV_NAME ": channel %p in card %p has wrong lsi field %p\n", &lsi6_dev[i].channels[k], &lsi6_dev[i], channel->lsi);
+        return 0;
+    }
+    return 1;
+}
 
 //Scheduled by lsi6_interrupt
 //Is stored in lsi6_dev_t::interruptHandler
-void lsi6_interrupt_bottom_half(struct work_struct *work) {
+static void lsi6_interrupt_bottom_half(struct work_struct *work) {
     lsi6_channel * channel = container_of(work, lsi6_channel, interruptHandler);
     lsi6_handleChannelInterrupt(channel);
 }
@@ -146,20 +171,8 @@ static void lsi6_handleChannelInterrupt(lsi6_channel * channel) {
     #ifdef DEBUG
     static int fail = 0;
     if (fail) return;
-    for (i = 0; i < card_no && i < LSI6_NUMCARDS; ++i) {
-        for (k = 0; k < LSI6_NUMCHANNELS; ++k) {
-            if (&lsi6_dev[i].channels[k] == channel)
-                break;
-        }
-    }
-    if (&lsi6_dev[i].channels[k] != channel) {
-        fail = 1;
-        printk(DRV_NAME ": channel %p can't be found\n", channel);
-        return;
-    }
-    if (lsi != &lsi6_dev[i]) {
-        fail = 1;
-        printk(DRV_NAME ": channel %p in card %p has wrong lsi field %p\n", &lsi6_dev[i].channels[k], &lsi6_dev[i], lsi);
+    if (!isValidChannel(channel)) {
+        fail=1;
         return;
     }
     #endif
@@ -185,6 +198,7 @@ static void lsi6_handleChannelInterrupt(lsi6_channel * channel) {
     } else {
         // Read and reset lam register.
         lmr = 0;
+        //Second byte of mask/requests register is requests
         if (k0607_read_lmr(lsi, chnum, &lmr) != -1) {
             for (k = 0, mask= 0x100; k < K0607_LGROUPS; k++, mask <<=1) {
                 if (lmr & mask) {
@@ -192,14 +206,19 @@ static void lsi6_handleChannelInterrupt(lsi6_channel * channel) {
                     lsi->LWQ_flags[chnum][k] = 1;
                 }
             }
+            // Disabling corresponding LAM groups (the first byte of the same register)
             k0607_write_lmr(lsi, chnum, (~(lmr >> 8)) & 0xff);
         }
         spin_unlock_irqrestore(&channel->lock, flags);
     }
     
     //Reenabling interrupts disabled in interrupt handler
-    
-    
+    spin_lock_irqsave(&intrlock, flags);
+    {
+        unsigned enabled = readl(&lsi6_regs->intr_enable);
+        writel(enabled | (1 << chnum), &lsi6_regs->intr_enable);
+    }
+    spin_unlock_irqrestore(&intrlock, flags);
 }
 
 static int lsi6_open(struct inode * inode, struct file * file)
@@ -577,7 +596,7 @@ static int lsi6_init_channel(lsi6_channel * chan, lsi6_dev_t * lsi) {
         printk(DRV_NAME ": INIT_WORK corrupted channel structure for channel %p\n", chan);
         return -EFAULT;
     }
-    DP(printk(DRV_NAME ": initialized channel %p in card %p\n", chan, lsi));
+    DP(printk(DRV_NAME ": initialized channel %p in card %p, work: %p\n", chan, lsi, &chan->interruptHandler));
     return 0;
 }
 static int lsi6_init_card(lsi6_dev_t * lsi){
