@@ -21,7 +21,7 @@
 #include "lsi6camac.h"
 #include "lsi6_lib.h"
 
-#undef DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define DP(x) x
@@ -96,7 +96,7 @@ static int get_device_no(int major)
     
     return -1;
 }
-
+static void lsi6_handleChannelInterrupt(lsi6_channel * channel);
 static spinlock_t intrlock = SPIN_LOCK_UNLOCKED;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
 static irqreturn_t lsi6_interrupt(int irq, void *dev_id)
@@ -112,27 +112,96 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
     spin_lock_irqsave(&intrlock, interflags);
     intr = readl(&lsi6_regs->intr);
     if (intr & 0x40) {
-        writel(0, &lsi6_regs->intr_global);
+        unsigned enabled = readl(&lsi6_regs->intr_enable);
+        // Bitmask of enabled channel interrupts
+        // We are disabling them at the end of this function to reenable in scheduled interruptHandler
 	    for (chnum = 0; chnum < LSI6_NUMCHANNELS; chnum++) {
-            CHAN_LOCK(flags);
 	        if (intr & (1 << chnum)) {
-		        k0607_read_lmr(lsi, chnum, &lmr);
-		        for (k = 0, mask= 0x100; k < K0607_LGROUPS; k++, mask <<=1) {
-		            if (lmr & mask) {
-                        wake_up_interruptible(&lsi->LWQ[chnum][k]);
-                        lsi->LWQ_flags[chnum][k] = 1;
-		            }
-		        }
-		        k0607_write_lmr(lsi, chnum, (~(lmr >> 8)) & 0xff);
+                if (1) {
+                    lsi6_handleChannelInterrupt(&lsi->channels[chnum]);
+                } else {
+                    enabled &= ~(1 << chnum);
+                    schedule_work(&lsi->channels[chnum].interruptHandler);
+                }
 	        }
-            CHAN_UNLOCK(flags);
 	    }
-    	writel(1, &lsi6_regs->intr_global);
+        writel(enabled, &lsi6_regs->intr_enable);
     }
     spin_unlock_irqrestore(&intrlock, interflags);
 
     return (irqreturn_t)IRQ_HANDLED;
 }
+
+
+//Scheduled by lsi6_interrupt
+//Is stored in lsi6_dev_t::interruptHandler
+void lsi6_interrupt_bottom_half(struct work_struct *work) {
+    lsi6_channel * channel = container_of(work, lsi6_channel, interruptHandler);
+    lsi6_handleChannelInterrupt(channel);
+}
+static void lsi6_handleChannelInterrupt(lsi6_channel * channel) {
+    lsi6_dev_t * lsi = channel->lsi;
+    lsi6_regs_t *lsi6_regs = (lsi6_regs_t *)lsi->base;
+    int lmr, mask, i, k, chnum = channel - lsi->channels;
+    #ifdef DEBUG
+    static int fail = 0;
+    if (fail) return;
+    for (i = 0; i < card_no && i < LSI6_NUMCARDS; ++i) {
+        for (k = 0; k < LSI6_NUMCHANNELS; ++k) {
+            if (&lsi6_dev[i].channels[k] == channel)
+                break;
+        }
+    }
+    if (&lsi6_dev[i].channels[k] != channel) {
+        fail = 1;
+        printk(DRV_NAME ": channel %p can't be found\n", channel);
+        return;
+    }
+    if (lsi != &lsi6_dev[i]) {
+        fail = 1;
+        printk(DRV_NAME ": channel %p in card %p has wrong lsi field %p\n", &lsi6_dev[i].channels[k], &lsi6_dev[i], lsi);
+        return;
+    }
+    #endif
+    unsigned enabled = 0;
+    unsigned long interflags, flags;
+    if (!channel) {
+        printk(DRV_NAME ": null channel reference in lsi6_handleChannelInterrupt\n");
+        return;
+    }
+    if (chnum<0 || chnum >= LSI6_NUMCHANNELS) {
+        printk(DRV_NAME ": bad channel number %d is calculated in lsi6_handleChannelInterrupt\n", chnum);
+        return;
+    }
+    if (!lsi) {
+        printk(DRV_NAME ": null device reference in lsi6_handleChannelInterrupt\n");
+        return;
+    }
+
+    spin_lock_irqsave(&channel->lock, flags);
+    if (0) {
+        printk(DRV_NAME ": timeout while locking channel in bottom half IRQ handler. The interrupt was lost.\n");
+        //TODO: consider implementing a real timeout here
+    } else {
+        // Read and reset lam register.
+        lmr = 0;
+        if (k0607_read_lmr(lsi, chnum, &lmr) != -1) {
+            for (k = 0, mask= 0x100; k < K0607_LGROUPS; k++, mask <<=1) {
+                if (lmr & mask) {
+                    wake_up_interruptible(&lsi->LWQ[chnum][k]);
+                    lsi->LWQ_flags[chnum][k] = 1;
+                }
+            }
+            k0607_write_lmr(lsi, chnum, (~(lmr >> 8)) & 0xff);
+        }
+        spin_unlock_irqrestore(&channel->lock, flags);
+    }
+    
+    //Reenabling interrupts disabled in interrupt handler
+    
+    
+}
+
 static int lsi6_open(struct inode * inode, struct file * file)
 {
     unsigned long flags;
@@ -496,21 +565,36 @@ static struct file_operations lsi6_fops = {
 	llseek:		lsi6_lseek,
 };
 
-static int lsi6_init_channel(lsi6_channel * chan) {
-    if (!chan)
-        return -ENODEV;
+static int lsi6_init_channel(lsi6_channel * chan, lsi6_dev_t * lsi) {
+    if (!chan) {
+        printk(DRV_NAME ": null channel in lsi6_init_channel\n");
+        return -EFAULT;
+    }
     chan->lock = SPIN_LOCK_UNLOCKED;
+    chan->lsi = lsi;
+    INIT_WORK(&chan->interruptHandler, lsi6_interrupt_bottom_half);
+    if (chan->lsi != lsi || lsi == 0) {
+        printk(DRV_NAME ": INIT_WORK corrupted channel structure for channel %p\n", chan);
+        return -EFAULT;
+    }
+    DP(printk(DRV_NAME ": initialized channel %p in card %p\n", chan, lsi));
     return 0;
 }
 static int lsi6_init_card(lsi6_dev_t * lsi){
     int i, rc = 0;
     if (!lsi)
-        return -ENODEV;
+        return -EFAULT;
     memset(lsi, 0, sizeof(lsi6_dev_t));
     for (i = 0; i < LSI6_NUMCHANNELS; ++i) {
-        rc = lsi6_init_channel(&lsi->channels[i]);
-            if (!rc)
-                break;
+        rc = lsi6_init_channel(&lsi->channels[i], lsi);
+        if (!rc && lsi->channels[i].lsi != lsi) {
+            printk(DRV_NAME ": channel %p lsi field: %p, required: %p\n", &lsi->channels[i].lsi, lsi);
+            rc = -EFAULT;
+        }
+        if (rc) {
+            printk(DRV_NAME ": channel %p initialization failed\n", &lsi->channels[i]);
+            break;
+        }
     }
     return rc;
 }
@@ -528,7 +612,9 @@ static int lsi6_init_one (struct pci_dev *pdev,
 	return -ENODEV;
 
     lsi = &lsi6_dev[card_no];
-    lsi6_init_card(lsi);
+    i = lsi6_init_card(lsi);
+    if (i)
+        return i;
 
     i = pci_enable_device (pdev);
     if (i) {

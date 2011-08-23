@@ -10,11 +10,18 @@
 typedef struct wait_queue *wait_queue_head_t;
 #endif
 
-typedef struct {
-    spinlock_t lock;
-} lsi6_channel;
+struct lsi6_dev;
 
 typedef struct {
+    spinlock_t lock;
+    struct lsi6_dev * lsi;
+    // Handles interrupts related to this channel.
+    // Has a reference to this structure instance to access registers and wake waiting queues.
+    // This procedure is done in a bottom half as it requires sleeping while reading LAM register.
+    struct work_struct interruptHandler;
+} lsi6_channel;
+
+struct lsi6_dev {
     long pciaddr;
     char *base;
     int irq;
@@ -24,7 +31,9 @@ typedef struct {
     unsigned short CSR[LSI6_NUMCHANNELS];
     wait_queue_head_t LWQ[LSI6_NUMCHANNELS][K0607_LGROUPS];
     int LWQ_flags[LSI6_NUMCHANNELS][K0607_LGROUPS];
-} lsi6_dev_t;
+};
+
+typedef struct lsi6_dev lsi6_dev_t;
 
 typedef struct {
 #define LSI6_STATUS_AT		0x01
