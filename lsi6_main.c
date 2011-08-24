@@ -139,13 +139,15 @@ static irqreturn_t lsi6_interrupt(int irq, void *dev_id, struct pt_regs *unused)
 //Returns 1 if channel isvalid, 0 otherwise
 static int isValidChannel(lsi6_channel * channel) {
     int rv = 0, i, k;
-    for (i = 0; i < card_no && i < LSI6_NUMCARDS; ++i) {
+    for (i = 0; i <= card_no && i < LSI6_NUMCARDS; ++i) {
         for (k = 0; k < LSI6_NUMCHANNELS; ++k) {
             if (&lsi6_dev[i].channels[k] == channel) {
-                rv = 1;
+                rv = 1; // a channel was found in global array.
                 break;
             }
         }
+        if (rv)
+            break;
     }
     if (!rv) {
         printk(DRV_NAME ": channel %p can't be found\n", channel);
@@ -198,16 +200,20 @@ static void lsi6_handleChannelInterrupt(lsi6_channel * channel) {
     } else {
         // Read and reset lam register.
         lmr = 0;
-        //Second byte of mask/requests register is requests
         if (k0607_read_lmr(lsi, chnum, &lmr) != -1) {
-            for (k = 0, mask= 0x100; k < K0607_LGROUPS; k++, mask <<=1) {
-                if (lmr & mask) {
+            int mask = lmr & 0xff; //First byte of mask/requests contains enabled groups
+            int reqs = (lmr >> 8) & 0xff; //Second byte of mask/requests contains group requests
+            DP(printk(DRV_NAME ": mask/requests register in channel %d: %x\n", chnum, lmr));
+            reqs &= mask;
+            for (k = 0; k < K0607_LGROUPS; k++) {
+                if (reqs & (1 << k)) {
+                    DP(printk(DRV_NAME ": lam in channel %d, group %d\n", chnum, k));
                     wake_up_interruptible(&lsi->LWQ[chnum][k]);
                     lsi->LWQ_flags[chnum][k] = 1;
                 }
             }
             // Disabling corresponding LAM groups (the first byte of the same register)
-            k0607_write_lmr(lsi, chnum, (~(lmr >> 8)) & 0xff);
+            k0607_write_lmr(lsi, chnum, mask & (~reqs));            
         }
         spin_unlock_irqrestore(&channel->lock, flags);
     }
@@ -675,16 +681,18 @@ static int lsi6_init_one (struct pci_dev *pdev,
 
     for (i = 0; i < LSI6_NUMCHANNELS; i++) {
 	int k;
-	for (k = 0; k < K0607_LGROUPS; k++) 
-	    init_waitqueue_head(&lsi->LWQ[i][k]);
+        for (k = 0; k < K0607_LGROUPS; k++) {
+            init_waitqueue_head(&lsi->LWQ[i][k]);
+        }
+        k0607_write_lmr(lsi, i, 0);
     }
 
     regs = (lsi6_regs_t *)lsi->base;
     writel(0, &regs->intr_global);
 
     if (request_irq(lsi->irq, lsi6_interrupt, IRQF_SHARED, DRV_NAME, lsi)) {
-	printk (KERN_ERR DRV_NAME ": Can't request irq %d\n", lsi->irq);
-	goto error_with_unmap;
+        printk (KERN_ERR DRV_NAME ": Can't request irq %d\n", lsi->irq);
+        goto error_with_unmap;
     }
 
     writel(readl(&regs->exist), &regs->intr_enable);
