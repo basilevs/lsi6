@@ -5,3 +5,4 @@
 .tmp_versions/
 Module.markers
 Module.symvers
+*~
