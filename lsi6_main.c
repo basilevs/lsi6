@@ -21,7 +21,7 @@
 #include "lsi6camac.h"
 #include "lsi6_lib.h"
 
-#define DEBUG
+#undef DEBUG
 
 #ifdef DEBUG
 #define DP(x) x

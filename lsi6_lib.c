@@ -27,6 +27,7 @@ int lsi6_wait_channel(lsi6_dev_t *lsi, int chnum)
     int status;
 
     while((readl(&regs->busy) & chmask) == 0) {
+        schedule();
         to++;
         if (to == 100000) {
 	    printk("lsi6: unexpected timeout !\n");
