@@ -13,7 +13,7 @@ typedef struct wait_queue *wait_queue_head_t;
 struct lsi6_dev;
 
 typedef struct {
-    spinlock_t lock;
+    struct mutex mutex;
     struct lsi6_dev * lsi;
     // Handles interrupts related to this channel.
     // Has a reference to this structure instance to access registers and wake waiting queues.
