@@ -30,7 +30,7 @@
 #endif
 
 #define DRV_NAME	"lsi6"
-#define DRV_VERSION	"1.06.2"
+#define DRV_VERSION	"1.06.3"
 #define DRV_RELDATE	"23 Sep. 2010"
 #define DRV_AUTHOR	"V.Mamkin, P.Cheblakov, V.Gulevich"
 
