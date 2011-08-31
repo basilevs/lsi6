@@ -4,6 +4,7 @@
 #include <linux/errno.h>
 #include <linux/pci.h>
 #include <linux/init.h>
+#include <linux/delay.h> //usleep_range
 #ifndef LINUX_VERSION_CODE
 #include <linux/version.h>
 #endif
@@ -17,6 +18,22 @@
 #include "lsi6.h"
 #include "lsi6camac.h"
 
+
+//#define DEBUG
+
+#ifdef DEBUG
+#define DP(x) x
+#else
+#define DP(x)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
+// This function appears in 2.6.36
+void usleep_range(unsigned long min, unsigned long max) {
+    cond_resched();
+}
+#endif
+
 int lsi6_wait_channel(lsi6_dev_t *lsi, int chnum)
 {
     int chmask = 1 << chnum;
@@ -27,13 +44,14 @@ int lsi6_wait_channel(lsi6_dev_t *lsi, int chnum)
     int status;
 
     while((readl(&regs->busy) & chmask) == 0) {
-        schedule();
+        usleep_range(1, 5); // System becomes unresponsive if we read PCI permanently.
         to++;
         if (to == 100000) {
-	    printk("lsi6: unexpected timeout !\n");
-	    return -1;
-	}
+            printk("lsi6: unexpected timeout !\n");
+            return -1;
+        }
     }
+    DP(printk("Channel is ready after %d wait cycles\n", to));
     status = readl(&chan->status);
     if (status & LSI6_STATUS_LT) {
 printk("lsi6: LT timeout !\n");
