@@ -94,7 +94,7 @@ static int get_device_no(int major)
     return -1;
 }
 static void lsi6_handleChannelInterrupt(lsi6_channel * channel);
-static spinlock_t intrlock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(intrlock);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
 static irqreturn_t lsi6_interrupt(int irq, void *dev_id)
 #else
