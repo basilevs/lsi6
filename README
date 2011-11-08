@@ -1,4 +1,4 @@
 lsi6 - line serial interface for CAMAC
---------------------------------------
 
-See documentation in doc/readme_pci.koi8
+This driver implements Nikiforov interface for LSI6 CAMAC PCI interface for Linux kernel 2.6.
+
