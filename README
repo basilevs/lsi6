@@ -4,13 +4,13 @@ This driver implements Nikiforov interface for LSI6 CAMAC PCI interface for Linu
 
 1. Debian
 1.1 Build
-sudo apt-get install linux-headers-686-pae
+sudo apt-get install linux-headers-686-pae debhelper
 cd /tmp
 rm -r basilevs-lsi6*
 wget https://github.com/basilevs/lsi6/tarball/master -O basilevs-lsi6.tar.gz
 tar -xf basilevs-lsi6.tar.gz
 cd basilevs-lsi6-*
-env -i PATH=/bin:/usr/bin dpkg-buildpackage -uc -us
+env -i PATH=/bin:/usr/bin dpkg-buildpackage -uc -us -b
 cd ..
 ls lsi6-dkms*.deb
 
@@ -20,7 +20,4 @@ env -i PATH=/bin:/usr/bin is used not to confuse Linux kernel Kbuild system with
 
 1.2 Installation
 dpkg -i lsi6-dkms_1.??_all.deb
-
-
-
 
