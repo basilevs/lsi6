@@ -2,3 +2,25 @@ lsi6 - line serial interface for CAMAC
 
 This driver implements Nikiforov interface for LSI6 CAMAC PCI interface for Linux kernel 2.6.
 
+1. Debian
+1.1 Build
+sudo apt-get install linux-headers-686-pae
+cd /tmp
+rm -r basilevs-lsi6*
+wget https://github.com/basilevs/lsi6/tarball/master -O basilevs-lsi6.tar.gz
+tar -xf basilevs-lsi6.tar.gz
+cd basilevs-lsi6-*
+env -i PATH=/bin:/usr/bin dpkg-buildpackage -uc -us
+cd ..
+ls lsi6-dkms*.deb
+
+Linux headers are required to validate the source before packaging.
+Tarball has dynamic root folder name inside - hence asterisk in cd argument.
+env -i PATH=/bin:/usr/bin is used not to confuse Linux kernel Kbuild system with strange environment variables. It can be omitted.
+
+1.2 Installation
+dpkg -i lsi6-dkms_1.??_all.deb
+
+
+
+
