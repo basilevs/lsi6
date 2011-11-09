@@ -12,7 +12,7 @@ none:
 	test -d $(KERNELDIR) && $(MAKE) modules || echo To build module invoke: KERNELDIR=/path/to/your/kernel/headers make modules.
 
 clean:
-	-test -d $(KERNELDIR) && $(MAKE) -C $(KERNELDIR) M=$(CURDIR) $@
+	test -d $(KERNELDIR) && $(MAKE) -C $(KERNELDIR) M=$(CURDIR) $@ || rm -f *.o lsi6.mod.c .lsi6.ko.cmd .*.o.cmd modules.order Module.symvers lsi6.ko
 
 headers:
 	test -d $(KERNELDIR)
