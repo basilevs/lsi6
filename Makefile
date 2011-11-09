@@ -7,6 +7,9 @@ else
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 
+none:
+	@echo To build module invoke: make modules
+
 modules modules_install clean:
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) $@
 
