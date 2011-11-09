@@ -7,10 +7,17 @@ else
 
 KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 
-none:
-	@echo To build module invoke: make modules
 
-modules modules_install clean:
+none:
+	test -d $(KERNELDIR) && $(MAKE) modules || echo To build module invoke: KERNELDIR=/path/to/your/kernel/headers make modules.
+
+clean:
+	-test -d $(KERNELDIR) && $(MAKE) -C $(KERNELDIR) M=$(CURDIR) $@
+
+headers:
+	test -d $(KERNELDIR)
+
+modules modules_install: headers
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) $@
 
 camt:	camt.c
