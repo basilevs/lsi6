@@ -7,6 +7,7 @@ VERSION=$(shell dpkg-parsechangelog |grep ^Version:|cut -d ' ' -f 2)
 
 override_dh_install:
 	dh_install Makefile  k0607.h  lsi6.h  lsi6_lib.c  lsi6_lib.h  lsi6_main.c  lsi6camac.h usr/src/lsi6-dkms-$(VERSION)/
+	dh_install udev/91-lsi6.rules etc/udev/rules.d
 
 override_dh_dkms:
 	dh_dkms -V $(VERSION)

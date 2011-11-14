@@ -1,1 +1,1 @@
-KERNEL=="lsi6*", GROUP="root", MODE="0660"
+KERNEL=="lsi6*", GROUP="root", MODE="0666"
