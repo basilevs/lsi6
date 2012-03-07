@@ -31,8 +31,8 @@
 #endif
 
 #define DRV_NAME	"lsi6"
-#define DRV_VERSION	"1.07"
-#define DRV_RELDATE	"23 Sep. 2010"
+#define DRV_VERSION	"1.08"
+#define DRV_RELDATE	"31 Jan, 2012"
 #define DRV_AUTHOR	"V.Mamkin, P.Cheblakov, V.Gulevich"
 
 MODULE_AUTHOR(DRV_AUTHOR);
