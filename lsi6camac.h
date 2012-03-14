@@ -33,8 +33,8 @@
 #include <unistd.h>
 #endif
 
-#define NAF(n,a,f) (((f&0x1f)<<16) | ((n&0x1f)<<4) | (a&0xf))
-#define NAF24(n,a,f) (((f&0x1f)<<16) | ((n&0x1f)<<4) | (a&0xf) | CAMAC_24)
+#define NAF(n,a,f) ((((f)&0x1f)<<16) | (((n)&0x1f)<<4) | ((a)&0xf))
+#define NAF24(n,a,f) ((((f)&0x1f)<<16) | (((n)&0x1f)<<4) | ((a)&0xf) | CAMAC_24)
 
 #define N_NAF(naf) (((naf) >> 4 ) & 0x1f)
 #define A_NAF(naf) ((naf) & 0xf)
