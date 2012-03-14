@@ -4,7 +4,7 @@ This driver implements Nikiforov interface for LSI6 CAMAC PCI interface for Linu
 
 1. Debian
 1.1 Build
-sudo apt-get install debhelper
+sudo apt-get install dkms debhelper
 cd /tmp
 rm -r basilevs-lsi6*
 wget https://github.com/basilevs/lsi6/tarball/master -O basilevs-lsi6.tar.gz
