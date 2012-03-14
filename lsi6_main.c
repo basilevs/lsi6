@@ -209,8 +209,8 @@ static void lsi6_handleChannelInterrupt(lsi6_channel * channel) {
 			for (k = 0; k < K0607_LGROUPS; k++) {
 				if (reqs & (1 << k)) {
 					DP(printk(DRV_NAME ": lam in channel %d, group %d\n", chnum, k));
-					wake_up_interruptible(&lsi->LWQ[chnum][k]);
 					lsi->LWQ_flags[chnum][k] = 1;
+					wake_up_interruptible(&lsi->LWQ[chnum][k]);
 				}
 			}
 			// Disabling corresponding LAM groups (the first byte of the same register)
@@ -272,7 +272,6 @@ static long lsi6_ioctl(struct file *file,
 	unsigned long * ptr = (unsigned long * ) arg;
 	unsigned long x;
 	int n,a,f, rc;
-	unsigned long volatile jiffies_start, jiffies_end;
 	int jiffies_left;
 	unsigned int card = get_device_no(MAJOR(inode->i_rdev));
 	lsi6_dev_t *lsi;
@@ -359,17 +358,12 @@ static long lsi6_ioctl(struct file *file,
 			lsi->LWQ_flags[chnum][lgroup]);
 			return 0;
 		}
-		jiffies_start = jiffies;
-		wait_event_interruptible_timeout(lsi->LWQ[chnum][lgroup], lsi->LWQ_flags[chnum][lgroup], timeout);
-		jiffies_end = jiffies;
-	
-		if (!lsi->LWQ_flags[chnum][lgroup]) {
+		jiffies_left = wait_event_interruptible_timeout(lsi->LWQ[chnum][lgroup], lsi->LWQ_flags[chnum][lgroup], timeout);
+		
+		if (jiffies_left == 0) {
+			DP(printk(DRV_NAME " timeout while waiting for LAM from channel %d, group %d\n", chnum, lgroup));
 			return -ETIME;
 		}
-
-		jiffies_left = timeout - (jiffies_end - jiffies_start);
-		if (jiffies_left < 0)
-			jiffies_left = 0;
 
 		return jiffies_left;
 	} // if(n == CAMAC_NLAM)
