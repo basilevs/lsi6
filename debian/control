@@ -2,7 +2,7 @@ Source: lsi6-dkms
 Section: kernel
 Priority: extra
 Maintainer: Vasili Gulevich <V.V.Gulevich@mail.ru>
-Build-Depends: debhelper (>= 5.0.0)
+Build-Depends: debhelper (>= 5.0.0), dkms
 Standards-Version: 3.9.2
 Homepage: https://github.com/basilevs/lsi6
 Vcs-Git: git://git@github.com:basilevs/lsi6.git
