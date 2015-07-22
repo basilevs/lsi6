@@ -9,7 +9,10 @@
 #include <linux/version.h>
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 #include <asm/system.h>
+#endif
+
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/uaccess.h>
